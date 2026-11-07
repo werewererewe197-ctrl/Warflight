@@ -30,6 +30,20 @@ const CONN_RATE = +(process.env.WF_CONN_RATE || 40);         // новых по�
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 const RECONNECT_GRACE_MS = +(process.env.WF_RECONNECT_GRACE_MS || 30000);
 const TEST_HOOKS = process.env.WF_TEST_HOOKS === '1';
+// Эмуляция сети для тестов: WF_NETSIM="lat=150,jitter=30,loss=0.05" — задержка в одну сторону (мс), джиттер,
+// доля «потерянных» пакетов. Поверх TCP потеря = повторная передача (+250 мс) с задержкой всех следующих.
+const NETSIM = (() => {
+  const v = process.env.WF_NETSIM; if (!v) return null;
+  const o = Object.fromEntries(v.split(',').map(kv => kv.split('=')).map(([k, x]) => [k.trim(), +x]));
+  return { lat: o.lat || 0, jitter: o.jitter || 0, loss: o.loss || 0 };
+})();
+function netDelay(state) {
+  const now = Date.now();
+  let at = now + NETSIM.lat + Math.random() * NETSIM.jitter + (Math.random() < NETSIM.loss ? 250 : 0);
+  at = Math.max(at, state.last || 0);          // TCP не переупорядочивает
+  state.last = at;
+  return at - now;
+}
 
 const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'shared', 'planes.json'), 'utf8'));
 const profiles = new ProfileStore(data);
@@ -88,6 +102,7 @@ class Client {
   sendRaw(s) {
     if (this.ws.readyState !== 1) return;
     stats.bytesOut += Buffer.byteLength(s); stats.msgsOut++;
+    if (NETSIM) { const ws = this.ws; setTimeout(() => { if (ws.readyState === 1) ws.send(s); }, netDelay(this.netOut || (this.netOut = {}))); return; }
     this.ws.send(s);
   }
   error(msg, extra) { this.send({ t: 'err', msg, ...extra }); }
@@ -107,8 +122,14 @@ wss.on('connection', (ws, req) => {
   if (open >= MAX_CONN_PER_IP || recent.length > CONN_RATE) { ws.close(1013, 'too many connections'); return; }
   ipConns.set(ip, open + 1);
   ws.client = new Client(ws, ip);
+  const netIn = {};
   ws.on('message', raw => {
+    if (NETSIM) { setTimeout(() => onMessage(ws, raw), netDelay(netIn)); return; }
+    onMessage(ws, raw);
+  });
+  function onMessage(ws, raw) {
     const c = ws.client;
+    if (!c) return;
     const t = Date.now();
     stats.bytesIn += raw.length;
     if (!c.limiter.allow(t)) { if (c.limiter.abusive) ws.close(4000, 'flood'); return; }
@@ -116,7 +137,7 @@ wss.on('connection', (ws, req) => {
     try { m = JSON.parse(raw); } catch { return; }
     if (!m || typeof m !== 'object' || typeof m.t !== 'string') return;
     try { handle(ws, ws.client, m, t); } catch (e) { console.error('Ошибка обработки', m.t, e); }
-  });
+  }
   ws.on('close', code => {
     const n = (ipConns.get(ip) || 1) - 1;
     if (n <= 0) ipConns.delete(ip); else ipConns.set(ip, n);
