@@ -181,8 +181,8 @@ export class Game {
     } else if (onRunway) {
       x = toRight ? af.x0 + 40 : af.x1 - 40; y = af.h + 5 * u.st.size; a = toRight ? 0 : Math.PI; speed = 0;
     } else {
-      x = toRight ? af.x1 - 100 - Math.random() * 300 : af.x0 + 100 + Math.random() * 300;
-      y = af.h + 380 + Math.random() * 200; a = toRight ? 0.05 : Math.PI - 0.05; speed = u.st.vstall * 1.9;
+      x = toRight ? af.x1 - Math.random() * 700 : af.x0 + Math.random() * 700;
+      y = af.h + 350 + Math.random() * 450; a = toRight ? 0.05 : Math.PI - 0.05; speed = u.st.vstall * 1.9;
     }
     const p = createPlane(u.st, x, y, a, speed, onRunway);
     if (onRunway) p.thr = 0.2;
@@ -294,7 +294,6 @@ export class Game {
 
   userDied(u) {
     u.state = 'dead'; u.planeEid = 0;
-    u.stats.deaths++;
     u.respawnT = this.settings.respawnTime;
     this.rules.onDeath && this.rules.onDeath(this, u);
   }
@@ -487,10 +486,12 @@ export class Game {
     if (!u) return;
     let killer = attacker;
     if (!killer && u.lastHitBy && this.time - u.lastHitT < 10) killer = u.lastHitBy;
+    if (killer && !this.hostile(killer, u)) killer = null;
     this.events.push(['kill', killer ? killer.id : '', u.id, weapon === 'zone' ? 'zone' : (weapon || 'gun')]);
     this.events.push(['boom', Math.round(p.x), Math.round(p.y), 25]);
     if (killer && this.hostile(killer, u)) { killer.stats.kills++; killer.stats.score += 2; this.rules.onKill(this, killer, u, false); }
     pl.killedCredited = true;
+    u.stats.deaths++;
   }
 
   crashPlane(pl, how) {
@@ -506,6 +507,7 @@ export class Game {
       if (!p.dead && !pl.killedCredited) {
         let killer = (u.lastHitBy && this.time - u.lastHitT < 10) ? u.lastHitBy : null;
         this.events.push(['kill', killer ? killer.id : '', u.id, 'crash']);
+        u.stats.deaths++;
         if (killer && this.hostile(killer, u)) { killer.stats.kills++; killer.stats.score += 2; this.rules.onKill(this, killer, u, false); }
       }
       // посадка на воду на малой скорости — пилот выживает
@@ -523,15 +525,16 @@ export class Game {
     for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++) {
       const a = arr[i], b = arr[j];
       if (a.p.ground && b.p.ground) continue;
-      const r = 12 * (a.st.size + b.st.size);
+      const r = 9 * (a.st.size + b.st.size);
       const dx = a.p.x - b.p.x, dy = a.p.y - b.p.y;
       if (dx * dx + dy * dy > r * r) continue;
       if (this.time - (a.collideT || -9) < 0.5) continue;
       a.collideT = b.collideT = this.time;
       const rel = Math.hypot(a.p.vx - b.p.vx, a.p.vy - b.p.vy);
-      const dmg = 30 + rel * 0.9;
+      const dmg = 20 + rel * 0.5;
       this.events.push(['hit', Math.round((a.p.x + b.p.x) / 2), Math.round((a.p.y + b.p.y) / 2), 0, 1]);
       const ao = a.owner, bo = b.owner;
+      if (ao && bo && !this.hostile(ao, bo)) continue;   // свои не таранят друг друга
       this.damagePlane(a, dmg, 'wing', bo, 'ram', true);
       this.damagePlane(b, dmg, 'wing', ao, 'ram', true);
     }

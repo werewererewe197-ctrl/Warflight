@@ -33,7 +33,8 @@ export class Renderer {
   baseZoom() { return Math.min(this.W, this.H * 1.6) / 1250; }
 
   follow(x, y, speed = 0, dt = 0.016, extraZoom = 1) {
-    const zTarget = this.baseZoom() * clamp(1.15 - speed / 1400, 0.82, 1.1) * extraZoom;
+    const alt = this.terrain ? y - this.terrain.ground(x) : 0;
+    const zTarget = this.baseZoom() * clamp(1.15 - speed / 1400, 0.82, 1.1) * extraZoom * clamp(1 - (alt - 350) / 2500, 0.72, 1);
     const k = Math.min(1, dt * 3);
     this.cam.z += (zTarget - this.cam.z) * k;
     const z = this.cam.z;

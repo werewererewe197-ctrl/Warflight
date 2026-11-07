@@ -185,8 +185,7 @@ export function stepPilot(c, inp, h, terrain) {
     if (!c.chute && c.chuteT > 0.6) c.chute = true;
     c.vy -= G * h;
     if (c.chute) {
-      c.vy = Math.max(c.vy, -55);
-      if (c.vy < -55) c.vy = -55;
+      c.vy = Math.max(c.vy, -85);
       c.vx += (mx * 60 - c.vx) * Math.min(1, 1.2 * h);
     } else {
       c.vy = Math.max(c.vy, -420);

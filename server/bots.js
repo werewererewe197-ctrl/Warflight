@@ -70,6 +70,26 @@ export function botThink(g, u, dt) {
     urgent = p.x < 0 || p.x > t.width;
   }
 
+  // 3б. предотвращение столкновений с любыми самолётами
+  if (!urgent) {
+    for (const o of g.planes.values()) {
+      if (o === pl) continue;
+      const rx = o.p.x - p.x, ry = o.p.y - p.y, d = Math.hypot(rx, ry);
+      if (d > 800 || d < 1) continue;
+      const closing = -((o.p.vx - p.vx) * rx + (o.p.vy - p.vy) * ry) / d;
+      // проверяем минимальную дистанцию на траектории сближения
+      const rvx = o.p.vx - p.vx, rvy = o.p.vy - p.vy, rv2 = rvx * rvx + rvy * rvy || 1;
+      const tmin = -(rx * rvx + ry * rvy) / rv2;
+      const miss = Math.hypot(rx + rvx * tmin, ry + rvy * tmin);
+      if (closing > 0 && tmin > 0 && tmin < 1.3 && miss < 45 * (st.size + o.st.size)) {
+        // расходимся по высоте: тот, кто выше, уходит вверх
+        const upward = ry < 0 || alt < 350;
+        desired = (dirX > 0 ? 0 : Math.PI) + dirX * (upward ? 0.9 : -0.9);
+        return finish(inp, desired, p, true, D, b, v, vs);
+      }
+    }
+  }
+
   // 4. бой
   if (!urgent) {
     b.retarget -= dt;
@@ -105,8 +125,9 @@ export function botThink(g, u, dt) {
       const off = Math.abs(wrapAngle(desired - p.a));
       const d = Math.hypot(ax, ay);
       fire = d < D.range && off < D.cone + 18 / Math.max(80, d);
-      // не врезаться в цель
-      if (airDist < 60) desired = p.a + 0.8;
+      // не врезаться в цель: при встречном сближении уходим вверх/вниз
+      const closing = ((air.p.vx - p.vx) * rx + (air.p.vy - p.vy) * ry) / Math.max(1, airDist);
+      if (airDist < 90 + Math.max(0, -closing) * 0.35) { desired = p.a + (alt > 300 && ry > 0 ? -0.9 : 0.9); fire = false; }
       if (airDist > 900 && p.heat < 0.5 && Math.random() < D.boost) inp.bo = 1;
       // не пикировать в землю за целью
       if (alt < 260 && Math.sin(desired) < -0.2) desired = dirX > 0 ? -0.05 : Math.PI + 0.05;
@@ -119,14 +140,17 @@ export function botThink(g, u, dt) {
     }
   }
   if (desired === null) desired = p.a;
+  inp.f = fire ? 1 : 0;
+  return finish(inp, desired, p, urgent, D, b, v, vs);
+}
 
+function finish(inp, desired, p, urgent, D, b, v, vs) {
   // ход ручкой: рассогласование -> тангаж
   const err = wrapAngle(desired - p.a);
   inp.p = clamp(err * 3.2 * D.turn, -1, 1);
   if (urgent) inp.p = clamp(err * 5, -1, 1);
   // на малой скорости не тянем ручку до упора
   if (v < vs * 1.3 && !urgent) inp.p *= 0.6;
-  inp.f = fire ? 1 : 0;
   inp.ta = 1;
   // держим «живот» к земле
   const wantRoll = Math.cos(p.a) >= 0 ? 1 : -1;

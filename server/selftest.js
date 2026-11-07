@@ -15,7 +15,7 @@ async function runMode(mode, map) {
   ws.on('message', raw => {
     const m = JSON.parse(raw);
     if (m.t === 's') {
-      stats.snaps++; stats.me = m.me.s;
+      stats.snaps++; stats.me = m.me.s; if (m.me.am) stats.ammo = m.me.am[0];
       for (const e of m.E) { if (e[0] === 'kill') stats.kills++; if (e[0] === 'shot') stats.shots++; if (e[0] === 'boom') stats.booms++; }
     }
     if (m.t === 'end') stats.end = m.reason;
@@ -25,7 +25,7 @@ async function runMode(mode, map) {
   await wait(200);
   ws.send(JSON.stringify({ t: 'start' }));
   let seq = 1;
-  const iv = setInterval(() => ws.send(JSON.stringify({ t: 'in', s: seq++, p: Math.sin(seq / 20), t: 1, f: 1, b: seq % 50 === 0 ? 1 : 0 })), 33);
+  const iv = setInterval(() => ws.send(JSON.stringify({ t: 'in', s: seq++, p: Math.sin(seq / 20), th: 1, f: 1, b: seq % 50 === 0 ? 1 : 0 })), 33);
   await wait(15000);
   clearInterval(iv);
   ws.close();

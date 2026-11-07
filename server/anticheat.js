@@ -39,7 +39,7 @@ export function sanitizeInput(raw) {
   if (s < 0) return null;
   const inp = {
     s,
-    p: num(raw.p, -1, 1), t: Math.round(num(raw.t, -1, 1)),
+    p: num(raw.p, -1, 1), t: Math.round(num(raw.th, -1, 1)),
     f: bit(raw.f), b: bit(raw.b), r: bit(raw.r), fl: bit(raw.fl), e: bit(raw.e), bo: bit(raw.bo),
     mx: Math.round(num(raw.mx, -1, 1)), j: bit(raw.j), k: bit(raw.k),
     aim: num(raw.aim, -4, 4),

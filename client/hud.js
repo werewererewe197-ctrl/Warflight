@@ -47,7 +47,7 @@ export function drawHud(r, info) {
     partsDiagram(ctx, px + 165, py + 40, me.parts, me.fire);
   } else if (me && me.kind === 'pilot') {
     const px = 12, py = mobile ? 12 : H - 90;
-    panel(ctx, px, py, 236, 78);
+    panel(ctx, px, py, 340, 78);
     ctx.fillStyle = '#fff'; ctx.font = '700 16px system-ui, sans-serif'; ctx.textAlign = 'left';
     ctx.fillText('Пилот на земле', px + 10, py + 22);
     bar(ctx, px + 10, py + 36, 150, 9, me.hpFrac, '#6fd36f', 'Здоровье');
