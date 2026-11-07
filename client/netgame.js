@@ -6,7 +6,7 @@ import { getTerrain } from '../shared/maps.js';
 import { PF, CF, PROJ_NAMES } from '../shared/protocol.js';
 import { drawHud } from './hud.js';
 
-const KILL_ICON = { gun: '✈︎', crash: '💥', pilot: '☠', zone: '☢', suicide: '☠', fire: '🔥', flak: '✷', boom: '💣', ram: '⚔', mg: '✈︎', hmg: '✈︎', cannon: '✈︎', hcannon: '✈︎', pistol: '🔫' };
+const KILL_ICON = { gun: 'fire', crash: 'burst', pilot: 'skull', zone: 'warning', suicide: 'skull', fire: 'boost', flak: 'burst', boom: 'bomb', ram: 'close', mg: 'fire', hmg: 'fire', cannon: 'fire', hcannon: 'fire', pistol: 'fire' };
 
 export class NetGame {
   constructor(app, m) {
@@ -37,6 +37,7 @@ export class NetGame {
     this.spectate = null;
     this.ended = false;
     this.chatLines = [];
+    this.startT = performance.now();
   }
 
   setRoster(roster) {
@@ -88,7 +89,7 @@ export class NetGame {
       case 'kill': {
         const [, killer, victim, how] = e;
         const kn = killer ? this.nameOf(killer) : '', vn = this.nameOf(victim);
-        this.killfeed.unshift({ killer: kn || (how === 'crash' ? '' : 'ПВО'), victim: vn, icon: KILL_ICON[how] || '✈︎', kc: killer ? this.colorOf(killer) : '#bbb', vc: this.colorOf(victim), ttl: 7 });
+        this.killfeed.unshift({ killer: kn || (how === 'crash' ? '' : 'ПВО'), victim: vn, icon: KILL_ICON[how] || 'fire', kc: killer ? this.colorOf(killer) : '#bbb', vc: this.colorOf(victim), ttl: 7 });
         if (this.killfeed.length > 6) this.killfeed.pop();
         if (killer === this.myId && victim !== this.myId) this.app.toast(how === 'pilot' ? `Пилот ${vn} уничтожен` : `Сбит: ${vn}`);
         if (victim === this.myId) this.spectate = killer || null;
@@ -152,8 +153,7 @@ export class NetGame {
       inp = this.input.planeInput(pos, this.pred);
     } else if (this.predKind === 'pilot' && this.pred) {
       const pos = { x: this.r.sx(this.pred.x), y: this.r.sy(this.pred.y + 10) };
-      inp = this.input.pilotInput(pos, this.autoAimPilot());
-      if (this._spawnClick) { inp.e = 1; this._spawnClick = false; }
+      inp = this.input.pilotInput(pos);
     } else {
       inp = this.input.pilotInput(null);
     }
@@ -199,19 +199,6 @@ export class NetGame {
       this._pt = 1 / 6;
       this.r.addTracer(c.x + Math.cos(c.aim) * 10, c.y + 10 + Math.sin(c.aim) * 10, Math.cos(c.aim) * 700, Math.sin(c.aim) * 700, 0.8, '255,240,200');
     }
-  }
-
-  autoAimPilot() {
-    // на телефоне пилот автоматически целится в ближайший вражеский самолёт
-    const s = this.latest; if (!s || !this.pred) return null;
-    let best = null, bd = 450;
-    for (const P of s.P) {
-      if (!this.hostileId(P[1]) || (P[10] & PF.DEAD)) continue;
-      const d = Math.hypot(P[3] - this.pred.x, P[4] - this.pred.y);
-      if (d < bd) { bd = d; best = P; }
-    }
-    if (!best) return Math.PI / 2;
-    return Math.atan2(best[4] + best[8] * 0.4 - this.pred.y - 10, best[3] + best[7] * 0.4 - this.pred.x);
   }
 
   // ---------- интерполяция ----------
@@ -320,26 +307,25 @@ export class NetGame {
     if (this.hitPos && this.hitMarker > 0) info.hitPos = { x: r.sx(this.hitPos[0]), y: r.sy(this.hitPos[1]) };
     if (s) {
       info.timer = s.tl;
-      info.modeLabel = MODES[this.mode].short;
       if (this.teams) {
-        info.score = this.mode === 'base' && s.x
-          ? [{ text: `${TEAM_NAMES[0]}: штаб ${s.x.hq[0]}%`, color: TEAM_COLORS[0] }, { text: `${TEAM_NAMES[1]}: штаб ${s.x.hq[1]}%`, color: TEAM_COLORS[1] }]
-          : [{ text: `${TEAM_NAMES[0]} ${s.ts[0]}`, color: TEAM_COLORS[0] }, { text: `${s.ts[1]} ${TEAM_NAMES[1]}`, color: TEAM_COLORS[1] }];
+        info.score = { kind: 'teams', vals: s.ts, colors: TEAM_COLORS, hq: this.mode === 'base' && s.x ? s.x.hq : null };
+      } else if (this.mode === 'br') {
+        const mine = s.sc.find(x => x[0] === this.myId);
+        info.score = { kind: 'br', alive: s.sc.filter(x => x[4] !== 2).length, kills: mine ? mine[1] : 0 };
       } else {
         const sc = [...s.sc].sort((a, b) => b[1] - a[1]);
         const mine = s.sc.find(x => x[0] === this.myId);
-        const place = sc.findIndex(x => x[0] === this.myId) + 1;
-        if (this.mode === 'br') info.score = [{ text: `Живых: ${s.sc.filter(x => x[4] !== 2).length}`, color: '#fff' }, { text: `Убийств: ${mine ? mine[1] : 0}`, color: '#ffe04a' }];
-        else info.score = [{ text: `Лидер: ${this.nameOf(sc[0] && sc[0][0])} ${sc[0] ? sc[0][1] : 0}`, color: this.colorOf(sc[0] && sc[0][0]) }, { text: `Вы: ${mine ? mine[1] : 0} (#${place})`, color: '#ffe04a' }];
+        const lead = sc[0];
+        info.score = { kind: 'ffa', leader: { name: this.nameOf(lead && lead[0]), val: lead ? lead[1] : 0, color: this.colorOf(lead && lead[0]) },
+          mine: { val: mine ? mine[1] : 0, place: sc.findIndex(x => x[0] === this.myId) + 1 } };
       }
     }
     // мини-карта
     const pts = [];
     for (const p of view.planes) {
-      if (p.isMe) continue;
+      if (p.isMe || p.dead) continue;
       const hostile = this.hostileId(p.owner);
       if (hostile && p.cloud) continue;
-      if (p.dead) continue;
       pts.push({ x: p.x, y: p.y, color: hostile ? '#ff5544' : '#66b0ff' });
     }
     for (const c of view.pilots) if (!c.isMe) pts.push({ x: c.x, y: c.y, color: '#fff', kind: 'pilot' });
@@ -347,43 +333,56 @@ export class NetGame {
     if (myPos) pts.push({ x: myPos.x, y: myPos.y, color: '#ffe04a', me: true });
     info.minimap = { terrain: this.terrain, points: pts, zone: s ? s.z : null, view: [r.wx(0), r.wx(r.W)], teamColor: t => this.teams ? TEAM_COLORS[t] : '#bbb' };
 
+    const touch = { hasBombs: false, hasRockets: false, bombs: 0, rockets: 0, canSpawn: false };
+    let touchMode = 'none';
     if (this.predKind === 'plane' && this.pred && me && me.mhp) {
+      touchMode = 'plane';
       const p = this.pred, st = this.myStats;
       info.me = {
         kind: 'plane', speed: Math.hypot(p.vx, p.vy), alt: p.y - this.terrain.ground(p.x), thr: p.thr, heat: p.heat, overheat: p.overheat, boosting: p.boosting,
         gunHeat: me.gh || 0, gunOverheat: !!me.go, hpFrac: me.hp / me.mhp, parts: p.parts, fire: !!me.fire,
         weapons: [
-          ...st.guns.map((g, i) => ({ label: `${g.wd.name} ×${g.count}`, n: me.am ? me.am[i] : 0 })),
-          ...(st.bombs ? [{ label: st.bombs.bd.name + ' [B]', n: me.bm }] : []),
-          ...(st.rockets ? [{ label: st.rockets.rd.name + ' [R]', n: me.rk }] : []),
+          ...st.guns.map((g, i) => ({ icon: 'bullet', n: me.am ? me.am[i] : 0, sub: caliber(g.wd.name), warn: !!me.go })),
+          ...(st.bombs ? [{ icon: 'bomb', n: me.bm, key: 'B' }] : []),
+          ...(st.rockets ? [{ icon: 'rocket', n: me.rk, key: 'R' }] : []),
         ],
       };
-      if (p.stall) info.warnings.push({ text: p.spin ? 'ШТОПОР! Отпустите ручку и опустите нос' : 'СВАЛИВАНИЕ! Нос вниз, газ!' });
-      if (p.overheat) info.warnings.push({ text: 'Двигатель перегрет', color: '#ffb04a' });
-      if (me.fire) info.warnings.push({ text: 'ПОЖАР! Разгонитесь в пикировании или прыгайте (E)', color: '#ff8a2a' });
-      if (p.dead) info.warnings.push({ text: 'САМОЛЁТ СБИТ — E: катапультироваться!' });
-      if (p.x < 0 || p.x > this.terrain.width) info.warnings.push({ text: 'ВЫ ПОКИДАЕТЕ ЗОНУ БОЯ' });
-      if (s && s.z && (p.x < s.z[0] || p.x > s.z[1])) info.warnings.push({ text: 'ВНЕ ЗОНЫ — урон!' });
-      if (me.rep) info.warnings.push({ text: 'Ремонт и перезарядка…', color: '#8fe09a' });
+      touch.hasBombs = !!st.bombs; touch.bombs = me.bm || 0; touch.hasRockets = !!st.rockets; touch.rockets = me.rk || 0;
+      if (p.stall) info.warnings.push({ text: p.spin ? 'Штопор — отпустите ручку' : 'Сваливание — нос вниз, газ', icon: 'warning' });
+      if (p.overheat) info.warnings.push({ text: 'Двигатель перегрет', icon: 'temp', color: '#ffb04a' });
+      if (me.fire) info.warnings.push({ text: 'Пожар — пикируйте или прыгайте', icon: 'boost', color: '#ff8a2a' });
+      if (p.dead) info.warnings.push({ text: this.input.touch ? 'Сбит — прыгайте!' : 'Сбит — E: прыжок!', icon: 'eject' });
+      if (p.x < 0 || p.x > this.terrain.width) info.warnings.push({ text: 'Покидаете зону боя', icon: 'map' });
+      if (s && s.z && (p.x < s.z[0] || p.x > s.z[1])) info.warnings.push({ text: 'Вне зоны — урон', icon: 'warning' });
+      if (me.rep) info.warnings.push({ text: 'Ремонт и перезарядка', icon: 'wrench', color: '#8fe09a' });
       const alt = p.y - this.terrain.ground(p.x);
-      if (alt < 120 && p.vy < -60 && !p.ground) info.warnings.push({ text: 'ЗЕМЛЯ!' });
+      if (alt < 120 && p.vy < -60 && !p.ground) info.warnings.push({ text: 'Земля!', icon: 'warning' });
       this.leadIndicator(info, view, p, st);
       info.aim = { x: r.sx(myPos.x + Math.cos(p.a) * 220), y: r.sy(myPos.y + Math.sin(p.a) * 220) };
       info.arrows = this.arrows(view, myPos);
-      info.hint = 'W/S газ · A/D (или M — мышь) · Space огонь · B бомба · R ракета · F переворот · E прыжок · Shift форсаж · Tab счёт';
+      if (performance.now() - this.startT < 15000) info.hint = 'W/S газ · A/D поворот · M мышь · Space огонь · B бомба · R ракета · F переворот · Shift форсаж · E прыжок';
     } else if (this.predKind === 'pilot' && me) {
-      let hint = 'A/D бег · W прыжок · ЛКМ огонь · K сдаться';
-      if (me.af) hint = 'E — взлететь с аэродрома!';
-      else if (this.settings.respawnMode === 'timer' && me.prt <= 0 && this.mode !== 'br') hint = 'E — возродиться в воздухе';
-      else if (this.settings.respawnMode === 'timer' && this.mode !== 'br') hint = `Возрождение через ${Math.ceil(me.prt)} с (или дойдите до аэродрома)`;
-      else hint = 'Дойдите до своего аэродрома, чтобы взлететь';
-      info.me = { kind: 'pilot', hpFrac: me.hp / me.mhp, hint };
-      this.app.setSpawnButton(me.af || (this.settings.respawnMode === 'timer' && me.prt <= 0 && this.mode !== 'br'));
+      touchMode = 'pilot';
+      const timer = this.settings.respawnMode === 'timer' && this.mode !== 'br';
+      const t = this.input.touch;
+      let hint, hintIcon = 'takeoff';
+      if (me.af) hint = t ? 'Нажмите самолёт, чтобы взлететь' : 'E — взлететь с аэродрома';
+      else if (timer && me.prt <= 0) hint = t ? 'Нажмите самолёт для возрождения' : 'E — возродиться в воздухе';
+      else if (timer) { hint = t ? `Возрождение через ${Math.ceil(me.prt)} с` : `Возрождение через ${Math.ceil(me.prt)} с или дойдите до аэродрома`; hintIcon = 'clock'; }
+      else { hint = 'Дойдите до своего аэродрома'; hintIcon = 'map'; }
+      info.me = { kind: 'pilot', hpFrac: me.hp / me.mhp, hint, hintIcon };
+      touch.canSpawn = !!(me.af || (timer && me.prt <= 0));
+      if (!t && performance.now() - this.startT < 15000) info.hint = 'A/D бег · W прыжок · мышь + ЛКМ огонь · K сдаться';
     } else if (me) {
       if (me.out) { info.center = 'Вы выбыли'; info.center2 = 'Наблюдение за боем'; }
-      else if (me.s === 'dead') { info.center = 'Вы погибли'; info.center2 = `Возрождение через ${Math.ceil(me.rt || 0)} с`; }
+      else if (me.s === 'dead') {
+        info.center = 'Сбит';
+        info.center2 = String(Math.ceil(me.rt || 0));
+        info.centerProgress = 1 - (me.rt || 0) / Math.max(1, this.settings.respawnTime);
+      }
     }
-    if (this.predKind !== 'pilot') this.app.setSpawnButton(false);
+    this.input.setTouchMode(touchMode);
+    this.input.setTouchInfo(touch);
     drawHud(r, info);
   }
 
@@ -434,5 +433,7 @@ export class NetGame {
     return `<table class="list"><thead><tr><th>Пилот</th><th>Самолёт</th><th>Сбито</th><th>Смерти</th><th>Наземка</th><th>Очки</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 }
+
+function caliber(name) { const m = /\d+(\.\d+)?/.exec(name || ''); return m ? m[0] + ' мм' : ''; }
 
 export function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }

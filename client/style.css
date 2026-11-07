@@ -114,29 +114,91 @@ table.list tr.clickable:hover td { background: rgba(255,255,255,0.05); cursor: p
   border-radius: 10px; padding: 14px; min-width: min(640px, 94vw); max-height: 80vh; overflow-y: auto; }
 #pause { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: auto; background: rgba(0,0,0,0.45); }
 #pause .panel { max-width: 380px; }
-.mini-btn { position: absolute; right: 12px; top: 64px; pointer-events: auto; background: rgba(10,18,30,0.6); color: #fff;
-  border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; width: 40px; height: 36px; font-size: 18px; display: none; }
-#btn-spawn { position: absolute; left: 50%; top: 56%; transform: translateX(-50%); pointer-events: auto; }
 
-#touch { position: fixed; inset: 0; pointer-events: none; z-index: 6; user-select: none; -webkit-user-select: none; }
-#touch .stick { position: absolute; left: max(18px, env(safe-area-inset-left)); bottom: 22px; width: 130px; height: 130px; border-radius: 50%;
-  background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.25); pointer-events: auto; touch-action: none; }
-#touch .knob { position: absolute; left: 40px; top: 40px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.35); }
-#touch .tbtns { position: absolute; right: 64px; bottom: 16px; display: grid; grid-template-columns: repeat(4, 58px); gap: 7px; pointer-events: none; }
-#touch .tb { pointer-events: auto; touch-action: none; height: 48px; border-radius: 12px; background: rgba(20,30,45,0.55); border: 1px solid rgba(255,255,255,0.3);
-  display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; }
-#touch .tb.fire { background: rgba(200,60,40,0.55); grid-row: span 2; height: auto; font-size: 13px; }
-#touch .tb.pressed { background: rgba(233,196,106,0.6); }
-#touch .throttle { position: absolute; right: max(10px, env(safe-area-inset-right)); bottom: 16px; width: 44px; height: 170px; border-radius: 10px;
-  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.3); pointer-events: auto; touch-action: none; overflow: hidden; }
-#touch .throttle .fill { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(159,224,122,0.45); }
-#touch .throttle span { position: absolute; left: 0; right: 0; top: 4px; text-align: center; font-size: 10px; font-weight: 700; }
-body.touch .mini-btn { display: block; }
-body.touch .ingame-chat { bottom: auto; top: 125px; font-size: 11px; width: min(300px, 40vw); }
-body.touch #chat-input { bottom: auto; top: 60px; }
+/* ---------- значки ---------- */
+.ic { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -3px; flex: 0 0 auto; }
+.btn .ic { margin-right: 6px; }
+.btn.icon-only .ic { margin-right: 0; }
+.btn.icon-only { padding: 9px 11px; }
+
+/* ---------- сенсорное управление ---------- */
+#touch { position: fixed; inset: 0; pointer-events: none; z-index: 6; user-select: none; -webkit-user-select: none;
+  --sl: max(16px, env(safe-area-inset-left)); --sr: max(10px, env(safe-area-inset-right)); }
+#touch[data-mode="plane"] [data-mode="pilot"], #touch[data-mode="pilot"] [data-mode="plane"],
+#touch[data-mode="none"] [data-mode] { display: none !important; }
+#touch .stick { position: absolute; left: var(--sl); bottom: 20px; width: 136px; height: 136px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.05) 0 45%, rgba(255,255,255,0.10) 46% 100%);
+  border: 1.5px solid rgba(255,255,255,0.28); pointer-events: auto; touch-action: none; }
+#touch .stick.aim { left: auto; right: calc(var(--sr) + 12px); border-color: rgba(255,120,90,0.55); }
+#touch .knob { position: absolute; left: 43px; top: 43px; width: 50px; height: 50px; border-radius: 50%;
+  background: rgba(255,255,255,0.32); border: 1.5px solid rgba(255,255,255,0.5); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+#touch .stick.aim .knob { background: rgba(230,90,60,0.45); }
+#touch .stick-ic { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: rgba(255,255,255,0.35); pointer-events: none; }
+#touch .stick-ic .ic { width: 30px; height: 30px; }
+
+#touch .rb { position: absolute; width: 54px; height: 54px; border-radius: 50%; pointer-events: auto; touch-action: none;
+  background: rgba(12,20,32,0.5); border: 1.5px solid rgba(255,255,255,0.28); color: #fff;
+  display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.25); }
+#touch .rb .ic { width: 26px; height: 26px; }
+#touch .rb.pressed { background: rgba(233,196,106,0.55); border-color: #e9c46a; transform: scale(0.94); }
+#touch .rb.off { opacity: 0.35; }
+#touch .rb .badge { position: absolute; top: -3px; right: -3px; min-width: 19px; height: 19px; padding: 0 4px; border-radius: 10px;
+  background: #e9c46a; color: #1a1205; font: 700 11px/19px system-ui, sans-serif; text-align: center; }
+#touch .rb .badge:empty { display: none; }
+#touch .rb.fire { width: 88px; height: 88px; right: calc(var(--sr) + 56px); bottom: 24px; background: rgba(200,60,40,0.45); border-color: rgba(255,160,140,0.6); }
+#touch .rb.fire .ic { width: 40px; height: 40px; }
+#touch .rb.bomb   { right: calc(var(--sr) + 155px); bottom: 41px; }
+#touch .rb.rocket { right: calc(var(--sr) + 131px); bottom: 99px; }
+#touch .rb.boost  { right: calc(var(--sr) + 73px);  bottom: 123px; }
+#touch .rb.boost.pressed { background: rgba(90,160,255,0.55); border-color: #7bc4ff; }
+#touch .rb.flip   { right: calc(var(--sr) + 209px); bottom: 104px; }
+#touch .rb.eject  { left: calc(var(--sl) + 8px); bottom: 172px; width: 46px; height: 46px; border-color: rgba(255,140,110,0.5); }
+#touch .rb.eject .ic { width: 22px; height: 22px; }
+#touch .rb.jump   { right: calc(var(--sr) + 168px); bottom: 28px; }
+#touch .rb.spawn  { right: calc(var(--sr) + 168px); bottom: 96px; width: 62px; height: 62px; background: rgba(201,147,47,0.75);
+  border-color: #e9c46a; color: #1a1205; display: none; }
+#touch.can-spawn[data-mode="pilot"] .rb.spawn { display: flex; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { transform: scale(1.08); } }
+
+#touch .throttle { position: absolute; right: var(--sr); bottom: 20px; width: 38px; height: 176px; border-radius: 19px;
+  background: rgba(12,20,32,0.5); border: 1.5px solid rgba(255,255,255,0.28); pointer-events: auto; touch-action: none; overflow: hidden; }
+#touch .throttle .fill { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, rgba(159,224,122,0.55), rgba(159,224,122,0.25)); }
+#touch .throttle .thr-ic { position: absolute; left: 0; right: 0; top: 8px; display: flex; justify-content: center; color: #fff; }
+#touch .throttle .thr-val { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font: 700 11px system-ui, sans-serif; color: #fff; }
+
+#touch .top-btns { position: absolute; top: 8px; right: var(--sr); display: flex; gap: 8px; }
+#touch .top-btns .rb { position: static; width: 38px; height: 38px; }
+#touch .top-btns .rb .ic { width: 19px; height: 19px; }
+
+body.touch .ingame-chat { bottom: auto; top: 74px; left: 50%; transform: translateX(-50%); font-size: 11px; width: min(320px, 44vw); }
+body.touch .ingame-chat div { margin: 2px auto; }
+body.touch #chat-input { bottom: auto; top: 54px; left: 50%; transform: translateX(-50%); }
 
 #modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); z-index: 30; padding: 16px; }
 #modal .panel { max-width: 420px; }
 #toast { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); background: rgba(10,18,30,0.92); border: 1px solid #e9c46a;
   color: #fff; padding: 8px 16px; border-radius: 8px; font-size: 14px; z-index: 40; opacity: 0; transition: opacity .25s; pointer-events: none; }
 #toast.on { opacity: 1; }
+
+h3 .ic { width: 16px; height: 16px; margin-right: 4px; vertical-align: -2px; }
+#lobby-chat-input { flex: 1 1 auto; }
+#lobby-chat-send { flex: 0 0 auto; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 999px; background: #0d1724;
+  border: 1px solid #2e4560; font-size: 13px; color: #cfdbe8; white-space: nowrap; }
+.chip .ic { width: 14px; height: 14px; color: #e9c46a; }
+.chip.mode { background: #2a2414; border-color: #c9932f; color: #f3dca0; font-weight: 600; }
+.lobby-desc { font-size: 13px; color: #9fb2c8; margin-bottom: 6px; }
+.pl .ic { width: 15px; height: 15px; }
+.pl .crown { color: #e9c46a; display: inline-flex; }
+.pl .rdy { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 22px; padding: 0; }
+.pl .rdy .ic { width: 14px; height: 14px; }
+.pl .lvl { font-size: 11px; color: #9fb2c8; background: #0d1724; border-radius: 6px; padding: 1px 6px; margin-left: 4px; }
+.pl .btn.small { padding: 3px 6px; }
+.pl .btn.small .ic { margin: 0; width: 13px; height: 13px; }
+th .ic { width: 16px; height: 16px; color: #e9c46a; }
+td .ic { width: 15px; height: 15px; }
+.stat span .ic, .upg span .ic { width: 13px; height: 13px; margin-right: 4px; color: #9fb2c8; }
+.btn.small .ic { width: 13px; height: 13px; margin-right: 3px; }
+
+.menu-box .row { margin-top: 0; }

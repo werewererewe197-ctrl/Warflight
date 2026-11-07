@@ -11,6 +11,8 @@ export class Input {
     this.touch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
     this.autoFlip = this.touch ? true : localStorage.getItem('wf_autoFlip') === '1';
     this.joy = { active: false, x: 0, y: 0, id: null };
+    this.aimJoy = { active: false, x: 0, y: 0, id: null };
+    this.lastAim = Math.PI / 2;
     this.tbtn = {};
     this.throttleTarget = null;
     this.onKey = null; // внешний обработчик (чат и т.п.)
@@ -85,41 +87,53 @@ export class Input {
     return inp;
   }
 
-  pilotInput(pos, autoAim) {
+  pilotInput(pos) {
     const e = this.takeEdges();
-    if (!this.enabled) return { mx: 0 };
+    if (!this.enabled) return { mx: 0, aim: this.lastAim };
     let mx = 0;
     if (this.key('KeyA', 'ArrowLeft')) mx -= 1;
     if (this.key('KeyD', 'ArrowRight')) mx += 1;
     if (this.joy.active) { if (this.joy.x < -0.3) mx = -1; else if (this.joy.x > 0.3) mx = 1; }
-    let aim = pos ? Math.atan2(-(this.mouse.y - pos.y), this.mouse.x - pos.x) : 0;
-    if (this.touch && autoAim !== undefined && autoAim !== null) aim = autoAim;
-    const inp = { mx, aim, f: (this.key('Space') || this.mouse.down || this.tbtn.fire) ? 1 : 0 };
-    if (e.j || (this.joy.active && this.joy.y < -0.6 && !this._jumped)) inp.j = 1;
-    this._jumped = this.joy.active && this.joy.y < -0.6;
+    let aim = this.lastAim, f = this.key('Space') || this.mouse.down;
+    if (this.touch) {
+      // правый джойстик: направление стрельбы, отклонение — огонь
+      const m = Math.hypot(this.aimJoy.x, this.aimJoy.y);
+      if (this.aimJoy.active && m > 0.25) { aim = Math.atan2(-this.aimJoy.y, this.aimJoy.x); if (m > 0.45) f = true; }
+    } else if (pos) aim = Math.atan2(-(this.mouse.y - pos.y), this.mouse.x - pos.x);
+    this.lastAim = aim;
+    const inp = { mx, aim, f: f ? 1 : 0 };
+    // прыжок: W, кнопка или левый джойстик вверх
+    const up = this.joy.active && this.joy.y < -0.6;
+    if (e.j || (up && !this._jumped)) inp.j = 1;
+    this._jumped = up;
     if (e.e) inp.e = 1;
     if (e.k) inp.k = 1;
     return inp;
   }
 
   // ---------- сенсорное управление ----------
-  buildTouch() {
-    const root = document.getElementById('touch');
-    root.classList.add('on');
-    const stick = root.querySelector('.stick'), knob = root.querySelector('.knob');
-    const setKnob = () => { knob.style.transform = `translate(${this.joy.x * 40}px, ${this.joy.y * 40}px)`; };
-    const upd = (t) => {
-      const r = stick.getBoundingClientRect();
-      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-      let dx = (t.clientX - cx) / 50, dy = (t.clientY - cy) / 50;
+  bindStick(el, st) {
+    const knob = el.querySelector('.knob');
+    const R = 46;
+    const setKnob = () => { knob.style.transform = `translate(${st.x * R}px, ${st.y * R}px)`; };
+    const upd = t => {
+      const r = el.getBoundingClientRect();
+      let dx = (t.clientX - (r.left + r.width / 2)) / R, dy = (t.clientY - (r.top + r.height / 2)) / R;
       const m = Math.hypot(dx, dy);
       if (m > 1) { dx /= m; dy /= m; }
-      this.joy.x = dx; this.joy.y = dy; setKnob();
+      st.x = dx; st.y = dy; setKnob();
     };
-    stick.addEventListener('touchstart', e => { e.preventDefault(); const t = e.changedTouches[0]; this.joy.id = t.identifier; this.joy.active = true; upd(t); }, { passive: false });
-    stick.addEventListener('touchmove', e => { e.preventDefault(); for (const t of e.changedTouches) if (t.identifier === this.joy.id) upd(t); }, { passive: false });
-    const end = e => { for (const t of e.changedTouches) if (t.identifier === this.joy.id) { this.joy.active = false; this.joy.x = this.joy.y = 0; setKnob(); } };
-    stick.addEventListener('touchend', end); stick.addEventListener('touchcancel', end);
+    el.addEventListener('touchstart', e => { e.preventDefault(); const t = e.changedTouches[0]; st.id = t.identifier; st.active = true; upd(t); }, { passive: false });
+    el.addEventListener('touchmove', e => { e.preventDefault(); for (const t of e.changedTouches) if (t.identifier === st.id) upd(t); }, { passive: false });
+    const end = e => { for (const t of e.changedTouches) if (t.identifier === st.id) { st.active = false; st.x = st.y = 0; setKnob(); } };
+    el.addEventListener('touchend', end); el.addEventListener('touchcancel', end);
+  }
+
+  buildTouch() {
+    const root = this.touchRoot = document.getElementById('touch');
+    this.aimJoy = { active: false, x: 0, y: 0, id: null };
+    this.bindStick(root.querySelector('.stick.move'), this.joy);
+    this.bindStick(root.querySelector('.stick.aim'), this.aimJoy);
 
     root.querySelectorAll('[data-btn]').forEach(b => {
       const name = b.dataset.btn;
@@ -129,24 +143,57 @@ export class Input {
         else if (name === 'bomb') this.edges.b = 1;
         else if (name === 'rocket') this.edges.r = 1;
         else if (name === 'flip') this.edges.fl = 1;
-        else if (name === 'eject') this.edges.e = 1;
+        else if (name === 'eject' || name === 'spawn') this.edges.e = 1;
         else if (name === 'jump') this.edges.j = 1;
         else if (name === 'chat') this.onTouchChat && this.onTouchChat();
+        else if (name === 'menu') this.onTouchMenu && this.onTouchMenu();
+        else if (name === 'score') this.onTouchScore && this.onTouchScore(true);
       };
-      const off = e => { e.preventDefault(); b.classList.remove('pressed'); this.tbtn[name] = false; };
+      const off = e => {
+        e.preventDefault(); b.classList.remove('pressed'); this.tbtn[name] = false;
+        if (name === 'score') this.onTouchScore && this.onTouchScore(false);
+      };
       b.addEventListener('touchstart', on, { passive: false });
       b.addEventListener('touchend', off, { passive: false });
       b.addEventListener('touchcancel', off, { passive: false });
     });
-    const thr = root.querySelector('.throttle'), fill = thr.querySelector('.fill');
+    const thr = root.querySelector('.throttle'), fill = thr.querySelector('.fill'), val = thr.querySelector('.thr-val');
     const setThr = t => {
       const r = thr.getBoundingClientRect();
-      const v = clamp(1 - (t.clientY - r.top) / r.height, 0, 1);
-      this.throttleTarget = v; fill.style.height = (v * 100) + '%';
+      const v = clamp(1 - (t.clientY - r.top - 8) / (r.height - 16), 0, 1);
+      this.throttleTarget = v; fill.style.height = (v * 100) + '%'; val.textContent = Math.round(v * 100);
     };
     thr.addEventListener('touchstart', e => { e.preventDefault(); setThr(e.changedTouches[0]); }, { passive: false });
     thr.addEventListener('touchmove', e => { e.preventDefault(); setThr(e.changedTouches[0]); }, { passive: false });
     this.throttleTarget = 0.85; fill.style.height = '85%';
+  }
+
+  // Режим сенсорных элементов: 'plane' | 'pilot' | 'none'.
+  setTouchMode(mode) {
+    if (this.touchRoot && this.touchRoot.dataset.mode !== mode) {
+      this.touchRoot.dataset.mode = mode;
+      this.tbtn = {};
+      this.joy.active = false; this.joy.x = this.joy.y = 0;
+      if (this.aimJoy) { this.aimJoy.active = false; this.aimJoy.x = this.aimJoy.y = 0; }
+      this.touchRoot.querySelectorAll('.knob').forEach(k => k.style.transform = '');
+    }
+  }
+
+  // Состояние кнопок оружия: наличие и счётчики.
+  setTouchInfo(o) {
+    if (!this.touchRoot) return;
+    const key = JSON.stringify(o);
+    if (key === this._tiKey) return;
+    this._tiKey = key;
+    const set = (sel, has, n) => {
+      const b = this.touchRoot.querySelector(sel); if (!b) return;
+      b.style.display = has ? '' : 'none';
+      b.classList.toggle('off', has && n <= 0);
+      const badge = b.querySelector('.badge'); if (badge) badge.textContent = has ? String(n) : '';
+    };
+    set('.rb.bomb', o.hasBombs, o.bombs);
+    set('.rb.rocket', o.hasRockets, o.rockets);
+    this.touchRoot.classList.toggle('can-spawn', !!o.canSpawn);
   }
 
   setTouchVisible(v) {

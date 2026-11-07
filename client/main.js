@@ -5,10 +5,20 @@ import { Net } from './net.js';
 import { UI } from './ui.js';
 import { OfflineGame } from './offline.js';
 import { NetGame } from './netgame.js';
+import { svg } from './icons.js';
 import { MAPS, getTerrain } from '../shared/maps.js';
 import { NATIONS, CLASSES, DEFAULT_SETTINGS, levelFromXp } from '../shared/constants.js';
 
 const $ = id => document.getElementById(id);
+
+// Вставляет SVG-значки в элементы с атрибутом data-icon.
+export function applyIcons(root) {
+  root.querySelectorAll('[data-icon]').forEach(el => {
+    if (el.dataset.iconDone) return;
+    el.dataset.iconDone = '1';
+    el.insertAdjacentHTML('afterbegin', svg(el.dataset.icon));
+  });
+}
 
 function token() {
   let t = localStorage.getItem('wf_token');
@@ -28,6 +38,9 @@ class App {
     this.input.toast = t => this.toast(t);
     this.input.onKey = e => this.onKey(e);
     this.input.onTouchChat = () => this.openChat();
+    this.input.onTouchMenu = () => this.togglePause();
+    this.input.onTouchScore = on => this.showScoreboard(on);
+    applyIcons(document);
     if (this.input.touch) document.body.classList.add('touch');
     this.ui = new UI(this);
     this.mode = null;
@@ -77,7 +90,7 @@ class App {
 
   updateProfileMini() {
     const p = this.profile;
-    $('profile-mini').textContent = p ? `Уровень ${levelFromXp(p.xp)} · ${p.xp} опыта · ${p.money} ¤ · открыто самолётов: ${p.unlocked.length}` : '';
+    $('profile-mini').innerHTML = p ? `<span class="chip">${svg('star')}${levelFromXp(p.xp)}</span> <span class="chip">${svg('coin')}${p.money}</span> <span class="chip">${svg('plane')}${p.unlocked.length}</span>` : '';
   }
 
   onMessage(m) {
@@ -170,14 +183,12 @@ class App {
     $('btn-results-ok').onclick = () => this.show(this.room ? 'lobby' : 'menu');
     $('btn-resume').onclick = () => { $('pause').classList.add('hidden'); this.input.enabled = true; };
     $('btn-quit').onclick = () => { $('pause').classList.add('hidden'); this.leaveToMenu(); };
-    $('btn-menu-mobile').onclick = () => this.togglePause();
-    $('btn-spawn').onclick = () => { if (this.game) this.game._spawnClick = true; };
     $('btn-offline').onclick = () => {
       $('o-map').innerHTML = Object.values(MAPS).map(m => `<option value="${m.id}">${m.name}</option>`).join('');
       $('o-plane').innerHTML = this.data.planes.map(p => `<option value="${p.id}">${NATIONS[p.nation].name} — ${p.name} (${CLASSES[p.class].name})</option>`).join('');
       this.show('offline');
     };
-    $('btn-offline-go').onclick = () => { this.mode = new OfflineGame(this, $('o-map').value, $('o-plane').value); this.show(null); };
+    $('btn-offline-go').onclick = () => { this.mode = new OfflineGame(this, $('o-map').value, $('o-plane').value); this.input.setTouchMode('plane'); this.show(null); };
     const ci = $('chat-input');
     ci.onkeydown = e => {
       if (e.key === 'Enter') { const v = ci.value.trim(); if (v) this.net.send({ t: 'chat', text: v, team: e.shiftKey ? 1 : 0 }); this.closeChat(); e.preventDefault(); }
@@ -212,10 +223,10 @@ class App {
     setTimeout(() => el.remove(), 12000);
   }
 
-  setSpawnButton(on) {
-    const b = $('btn-spawn');
-    const want = !!on && this.input.touch;
-    if (b.classList.contains('hidden') === want) b.classList.toggle('hidden', !want);
+  showScoreboard(on) {
+    const sb = $('scoreboard');
+    if (on && this.game) { sb.innerHTML = this.game.scoreboardHtml(); sb.classList.remove('hidden'); }
+    else sb.classList.add('hidden');
   }
 
   onKey(e) {
@@ -227,9 +238,8 @@ class App {
     if (e.code === 'Escape') { this.togglePause(); return true; }
     if (e.code === 'Tab') {
       e.preventDefault();
-      const sb = $('scoreboard');
-      sb.innerHTML = this.game.scoreboardHtml(); sb.classList.remove('hidden');
-      const up = ev => { if (ev.code === 'Tab') { sb.classList.add('hidden'); window.removeEventListener('keyup', up); } };
+      this.showScoreboard(true);
+      const up = ev => { if (ev.code === 'Tab') { this.showScoreboard(false); window.removeEventListener('keyup', up); } };
       window.addEventListener('keyup', up);
       return true;
     }

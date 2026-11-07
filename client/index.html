@@ -20,22 +20,22 @@
         <input id="nick" maxlength="16" placeholder="Ваш ник" autocomplete="off">
       </label>
       <div class="profile-mini" id="profile-mini"></div>
-      <button class="btn big primary" id="btn-quick">Быстрая игра</button>
+      <button class="btn big primary" id="btn-quick" data-icon="play">Быстрая игра</button>
       <div class="row">
-        <button class="btn" id="btn-create">Создать лобби</button>
-        <button class="btn" id="btn-browse">Найти лобби</button>
+        <button class="btn" id="btn-create" data-icon="plus">Создать лобби</button>
+        <button class="btn" id="btn-browse" data-icon="search">Найти лобби</button>
       </div>
       <div class="row">
         <input id="join-code" maxlength="6" placeholder="КОД" autocomplete="off" class="code-input">
-        <button class="btn" id="btn-join-code">Войти по коду</button>
+        <button class="btn" id="btn-join-code" data-icon="key">Войти по коду</button>
       </div>
       <div class="row">
-        <button class="btn" id="btn-hangar">Ангар</button>
-        <button class="btn" id="btn-profile">Профиль</button>
+        <button class="btn" id="btn-hangar" data-icon="hangar">Ангар</button>
+        <button class="btn" id="btn-profile" data-icon="user">Профиль</button>
       </div>
       <div class="row">
-        <button class="btn ghost" id="btn-offline">Тренировка (офлайн)</button>
-        <button class="btn ghost" id="btn-help">Управление</button>
+        <button class="btn ghost" id="btn-offline" data-icon="target">Тренировка (офлайн)</button>
+        <button class="btn ghost" id="btn-help" data-icon="help">Управление</button>
       </div>
       <div class="status" id="conn-status">Подключение…</div>
     </div>
@@ -50,8 +50,8 @@
         <tbody id="room-list"></tbody>
       </table></div>
       <div class="row end">
-        <button class="btn ghost" data-back>Назад</button>
-        <button class="btn" id="btn-refresh">Обновить</button>
+        <button class="btn ghost" data-back data-icon="back">Назад</button>
+        <button class="btn" id="btn-refresh" data-icon="refresh">Обновить</button>
       </div>
     </div>
   </div>
@@ -84,8 +84,8 @@
       <div class="sub">Разрешённые классы самолётов</div>
       <div class="checks" id="s-classes"></div>
       <div class="row end">
-        <button class="btn ghost" id="btn-create-cancel">Отмена</button>
-        <button class="btn primary" id="btn-create-ok">Создать</button>
+        <button class="btn ghost" id="btn-create-cancel" data-icon="close">Отмена</button>
+        <button class="btn primary" id="btn-create-ok" data-icon="check">Создать</button>
       </div>
     </div>
   </div>
@@ -101,21 +101,21 @@
         <div class="lobby-info" id="lobby-info"></div>
         <div id="lobby-teams"></div>
         <div class="row">
-          <button class="btn" id="btn-team">Сменить команду</button>
-          <button class="btn primary" id="btn-ready">Готов</button>
+          <button class="btn" id="btn-team" data-icon="swap">Сменить команду</button>
+          <button class="btn primary" id="btn-ready" data-icon="check">Готов</button>
         </div>
         <div class="row">
-          <button class="btn ghost" id="btn-leave">Покинуть</button>
-          <button class="btn host-only" id="btn-settings">Настройки</button>
-          <button class="btn primary host-only" id="btn-start">Начать матч</button>
+          <button class="btn ghost" id="btn-leave" data-icon="exit">Покинуть</button>
+          <button class="btn host-only" id="btn-settings" data-icon="sliders">Настройки</button>
+          <button class="btn primary host-only" id="btn-start" data-icon="play">Начать матч</button>
         </div>
       </div>
       <div class="panel">
-        <h3>Самолёт</h3>
+        <h3 data-icon="plane"> Самолёт</h3>
         <div class="plane-grid" id="lobby-planes"></div>
-        <h3>Чат</h3>
+        <h3 data-icon="chat"> Чат</h3>
         <div class="chat-log" id="lobby-chat"></div>
-        <div class="row"><input id="lobby-chat-input" maxlength="140" placeholder="Сообщение…" autocomplete="off"><button class="btn" id="lobby-chat-send">→</button></div>
+        <div class="row"><input id="lobby-chat-input" maxlength="140" placeholder="Сообщение…" autocomplete="off"><button class="btn icon-only" id="lobby-chat-send" data-icon="send" title="Отправить"></button></div>
       </div>
     </div>
   </div>
@@ -126,7 +126,7 @@
       <div class="lobby-head"><h2>Ангар</h2><div class="currency" id="hangar-money"></div></div>
       <div class="tabs" id="hangar-tabs"></div>
       <div class="hangar-list" id="hangar-list"></div>
-      <div class="row end"><button class="btn ghost" data-back>Назад</button></div>
+      <div class="row end"><button class="btn ghost" data-back data-icon="back">Назад</button></div>
     </div>
   </div>
 
@@ -135,7 +135,7 @@
     <div class="panel">
       <h2>Профиль пилота</h2>
       <div id="profile-body"></div>
-      <div class="row end"><button class="btn ghost" data-back>Назад</button></div>
+      <div class="row end"><button class="btn ghost" data-back data-icon="back">Назад</button></div>
     </div>
   </div>
 
@@ -175,7 +175,7 @@
           </ul>
         </div>
       </div>
-      <div class="row end"><button class="btn ghost" data-back>Назад</button></div>
+      <div class="row end"><button class="btn ghost" data-back data-icon="back">Назад</button></div>
     </div>
   </div>
 
@@ -189,8 +189,8 @@
         <label>Самолёт <select id="o-plane"></select></label>
       </div>
       <div class="row end">
-        <button class="btn ghost" data-back>Назад</button>
-        <button class="btn primary" id="btn-offline-go">Взлёт</button>
+        <button class="btn ghost" data-back data-icon="back">Назад</button>
+        <button class="btn primary" id="btn-offline-go" data-icon="takeoff">Взлёт</button>
       </div>
     </div>
   </div>
@@ -201,7 +201,7 @@
       <h2 id="results-title">Итоги матча</h2>
       <div class="table-wrap"><table class="list" id="results-table"></table></div>
       <div id="results-reward" class="reward"></div>
-      <div class="row end"><button class="btn primary" id="btn-results-ok">В лобби</button></div>
+      <div class="row end"><button class="btn primary" id="btn-results-ok" data-icon="back">В лобби</button></div>
     </div>
   </div>
 
@@ -215,29 +215,35 @@
         <h2>Пауза</h2>
         <p class="muted">Матч продолжается.</p>
         <div class="row">
-          <button class="btn" id="btn-resume">Продолжить</button>
-          <button class="btn ghost" id="btn-quit">Выйти в меню</button>
+          <button class="btn" id="btn-resume" data-icon="play">Продолжить</button>
+          <button class="btn ghost" id="btn-quit" data-icon="exit">Выйти в меню</button>
         </div>
       </div>
     </div>
-    <button id="btn-menu-mobile" class="mini-btn">☰</button>
-    <button id="btn-spawn" class="btn primary hidden">Взлететь</button>
   </div>
 
   <!-- ===== Сенсорное управление ===== -->
-  <div id="touch" style="display:none">
-    <div class="stick"><div class="knob"></div></div>
-    <div class="tbtns">
-      <div class="tb fire" data-btn="fire">ОГОНЬ</div>
-      <div class="tb" data-btn="bomb">БОМБА</div>
-      <div class="tb" data-btn="rocket">РАКЕТА</div>
-      <div class="tb" data-btn="boost">ФОРСАЖ</div>
-      <div class="tb" data-btn="flip">ПЕРЕВОРОТ</div>
-      <div class="tb" data-btn="eject">ВЫХОД</div>
-      <div class="tb" data-btn="jump">ПРЫЖОК</div>
-      <div class="tb" data-btn="chat">ЧАТ</div>
+  <div id="touch" style="display:none" data-mode="plane">
+    <div class="stick move"><div class="knob"></div></div>
+    <div class="stick aim" data-mode="pilot"><div class="knob"></div><div class="stick-ic" data-icon="fire"></div></div>
+
+    <div class="rb fire" data-btn="fire" data-mode="plane" data-icon="fire"></div>
+    <div class="rb bomb" data-btn="bomb" data-mode="plane" data-icon="bomb"><span class="badge"></span></div>
+    <div class="rb rocket" data-btn="rocket" data-mode="plane" data-icon="rocket"><span class="badge"></span></div>
+    <div class="rb boost" data-btn="boost" data-mode="plane" data-icon="boost"></div>
+    <div class="rb flip" data-btn="flip" data-mode="plane" data-icon="flip"></div>
+    <div class="rb eject" data-btn="eject" data-mode="plane" data-icon="eject"></div>
+
+    <div class="rb jump" data-btn="jump" data-mode="pilot" data-icon="jump"></div>
+    <div class="rb spawn" data-btn="spawn" data-mode="pilot" data-icon="takeoff"></div>
+
+    <div class="throttle" data-mode="plane"><div class="fill"></div><div class="thr-ic" data-icon="throttle"></div><span class="thr-val">85</span></div>
+
+    <div class="top-btns">
+      <div class="rb sm" data-btn="score" data-icon="table"></div>
+      <div class="rb sm" data-btn="chat" data-icon="chat"></div>
+      <div class="rb sm" data-btn="menu" data-icon="menu"></div>
     </div>
-    <div class="throttle"><div class="fill"></div><span>ГАЗ</span></div>
   </div>
 
   <div id="modal" class="hidden"><div class="panel"><div id="modal-body"></div><div class="row end" id="modal-btns"></div></div></div>

@@ -4,8 +4,10 @@ import { MODES, NATIONS, CLASSES, TEAM_COLORS, TEAM_NAMES, DEFAULT_SETTINGS, BOT
 import { MAPS } from '../shared/maps.js';
 import { drawPlaneShape } from './render.js';
 import { esc } from './netgame.js';
+import { svg } from './icons.js';
 
 const $ = id => document.getElementById(id);
+const UPG_ICON = { engine: 'engine', armor: 'shield', damage: 'fire', ammo: 'bullet', accuracy: 'target' };
 
 export function planePreview(canvas, def, parts) {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -68,9 +70,10 @@ export class UI {
     const tb = $('room-list');
     if (!list.length) { tb.innerHTML = `<tr><td colspan="7" class="muted">Открытых лобби нет — создайте своё или нажмите «Быстрая игра».</td></tr>`; return; }
     tb.innerHTML = list.map(r => `<tr class="clickable" data-code="${r.code}" data-locked="${r.locked ? 1 : 0}">
-      <td>${r.locked ? '🔒' : ''}</td><td>${esc(r.name)}</td><td>${MODES[r.mode].short}</td><td>${esc(MAPS[r.map].name)}</td>
-      <td>${r.players}/${r.max}${r.bots ? ` <span class="muted">+${r.bots} бот.</span>` : ''}</td><td>${r.state === 'playing' ? 'идёт бой' : 'в лобби'}</td>
-      <td><button class="btn small">Войти</button></td></tr>`).join('');
+      <td>${r.locked ? svg('lock') : ''}</td><td>${esc(r.name)}</td><td>${MODES[r.mode].short}</td><td>${esc(MAPS[r.map].name)}</td>
+      <td>${svg('people')} ${r.players}/${r.max}${r.bots ? ` <span class="muted">${svg('robot')} ${r.bots}</span>` : ''}</td>
+      <td>${r.state === 'playing' ? `<span title="идёт бой">${svg('fire')}</span>` : `<span title="в лобби">${svg('clock')}</span>`}</td>
+      <td><button class="btn small">${svg('play')}Войти</button></td></tr>`).join('');
     tb.querySelectorAll('tr[data-code]').forEach(tr => tr.onclick = () => this.app.joinRoom(tr.dataset.code, tr.dataset.locked === '1'));
   }
 
@@ -80,17 +83,27 @@ export class UI {
     const isHost = room.hostId === app.myId;
     $('lobby-name').textContent = s.name;
     $('lobby-code').textContent = room.code;
-    $('lobby-info').innerHTML = `<b>${esc(MODES[s.mode].name)}</b> — ${esc(MODES[s.mode].desc)}<br>
-      Карта: <b>${esc(MAPS[s.map].name)}</b> · Игроков: ${room.players.length}/${s.maxPlayers} · Время: ${s.timeLimit} мин · Лимит очков: ${s.scoreLimit}<br>
-      Боты: ${s.bots ? `${s.botCount} (${BOT_DIFFICULTY[s.botDifficulty]})` : 'выкл'} · Возрождение: ${s.respawnMode === 'timer' ? `таймер ${s.respawnTime} с` : 'через аэродром'}
-      ${room.hasPassword ? ' · 🔒 пароль' : ''}${room.state === 'playing' ? ' · <b style="color:#e9c46a">идёт бой</b>' : ''}<br>
-      Нации: ${s.nations.map(n => NATIONS[n].name).join(', ')} · Классы: ${s.classes.map(c => CLASSES[c].name).join(', ')}`;
+    const chip = (ic, text, title, cls = '') => `<span class="chip ${cls}" title="${esc(title)}">${svg(ic)}${text}</span>`;
+    $('lobby-info').innerHTML = `<div class="lobby-desc">${esc(MODES[s.mode].desc)}</div><div class="chips">
+      ${chip('target', esc(MODES[s.mode].name), 'Режим', 'mode')}
+      ${chip('map', esc(MAPS[s.map].name), 'Карта')}
+      ${chip('people', `${room.players.length}/${s.maxPlayers}`, 'Игроки')}
+      ${chip('clock', `${s.timeLimit} мин`, 'Лимит времени')}
+      ${chip('star', s.scoreLimit, 'Лимит очков')}
+      ${chip('robot', s.bots ? `${s.botCount} · ${BOT_DIFFICULTY[s.botDifficulty]}` : 'нет', 'Боты')}
+      ${chip(s.respawnMode === 'timer' ? 'refresh' : 'takeoff', s.respawnMode === 'timer' ? `${s.respawnTime} с` : 'аэродром', 'Возрождение')}
+      ${room.hasPassword ? chip('lock', 'пароль', 'Лобби с паролем') : ''}
+      ${room.state === 'playing' ? chip('fire', 'идёт бой', 'Матч уже идёт', 'mode') : ''}
+      ${chip('plane', s.nations.map(n => NATIONS[n].name).join(', '), 'Разрешённые нации')}
+      ${chip('hangar', s.classes.map(c => CLASSES[c].name).join(', '), 'Разрешённые классы')}
+    </div>`;
     const teams = MODES[s.mode].teams;
     const row = p => {
       const def = app.data.planes.find(d => d.id === p.planeId);
-      const kick = isHost && p.id !== app.myId ? `<button class="btn small danger" data-kick="${p.id}">✕</button>` : '';
-      return `<div class="pl">${p.id === room.hostId ? '<span class="crown">★</span>' : ''}<span class="nm">${esc(p.name)} <span class="muted">ур.${p.level}</span></span>
-        <span class="plane">${def ? esc(def.name) : ''}</span><span class="rdy ${p.ready || p.id === room.hostId ? 'ok' : ''}">${p.id === room.hostId ? 'хост' : p.ready ? 'готов' : 'не готов'}</span>${kick}</div>`;
+      const kick = isHost && p.id !== app.myId ? `<button class="btn small danger" data-kick="${p.id}" title="Исключить">${svg('close')}</button>` : '';
+      const host = p.id === room.hostId;
+      return `<div class="pl">${host ? `<span class="crown" title="Хост">${svg('crown')}</span>` : ''}<span class="nm">${esc(p.name)}<span class="lvl">${p.level}</span></span>
+        <span class="plane">${def ? esc(def.name) : ''}</span><span class="rdy ${p.ready || host ? 'ok' : ''}" title="${host ? 'хост' : p.ready ? 'готов' : 'не готов'}">${svg(p.ready || host ? 'check' : 'clock')}</span>${kick}</div>`;
     };
     if (teams) {
       $('lobby-teams').innerHTML = [0, 1].map(t => `<div class="team-box"><h4 style="color:${TEAM_COLORS[t]}">${TEAM_NAMES[t]}</h4>
@@ -102,8 +115,8 @@ export class UI {
     $('btn-team').style.display = teams ? '' : 'none';
     document.querySelectorAll('.host-only').forEach(el => el.style.display = isHost ? '' : 'none');
     $('btn-ready').style.display = isHost ? 'none' : '';
-    $('btn-ready').textContent = me && me.ready ? 'Не готов' : 'Готов';
-    $('btn-start').textContent = room.state === 'playing' ? 'Идёт бой…' : 'Начать матч';
+    $('btn-ready').innerHTML = svg(me && me.ready ? 'close' : 'check') + (me && me.ready ? 'Не готов' : 'Готов');
+    $('btn-start').innerHTML = svg('play') + (room.state === 'playing' ? 'Идёт бой…' : 'Начать матч');
     const allReady = room.players.every(p => p.ready || p.id === room.hostId);
     $('btn-start').disabled = room.state === 'playing' || !allReady;
     $('btn-settings').disabled = room.state === 'playing';
@@ -121,7 +134,7 @@ export class UI {
     grid.innerHTML = list.map(p => {
       const locked = prof && !prof.unlocked.includes(p.id);
       return `<div class="pcard ${me && me.planeId === p.id ? 'sel' : ''} ${locked ? 'locked' : ''}" data-id="${p.id}" title="${esc(p.desc)}">
-        <canvas></canvas><div class="nm">${esc(p.name)}</div><div class="cls">${esc(NATIONS[p.nation].name)} · ${esc(CLASSES[p.class].name)}${locked ? ' · 🔒' : ''}</div></div>`;
+        <canvas></canvas><div class="nm">${esc(p.name)}</div><div class="cls">${esc(NATIONS[p.nation].name)} · ${esc(CLASSES[p.class].name)}${locked ? ' ' + svg('lock') : ''}</div></div>`;
     }).join('');
     grid.querySelectorAll('.pcard').forEach(c => {
       const def = app.data.planes.find(p => p.id === c.dataset.id);
@@ -146,7 +159,7 @@ export class UI {
     const app = this.app, prof = app.profile, data = app.data;
     if (!prof) { $('hangar-list').innerHTML = '<div class="muted">Профиль загружается… (нужно подключение к серверу)</div>'; return; }
     const lvl = levelFromXp(prof.xp);
-    $('hangar-money').textContent = `Уровень ${lvl} · ${prof.money} ¤`;
+    $('hangar-money').innerHTML = `${svg('star')} ${lvl} &nbsp; ${svg('coin')} ${prof.money}`;
     $('hangar-tabs').innerHTML = Object.entries(NATIONS).map(([k, n]) => `<button class="btn ${k === this.hangarNation ? 'sel' : ''}" data-n="${k}">${esc(n.name)}</button>`).join('');
     $('hangar-tabs').querySelectorAll('button').forEach(b => b.onclick = () => { this.hangarNation = b.dataset.n; this.renderHangar(); });
     const planes = data.planes.filter(p => p.nation === this.hangarNation).sort((a, b) => a.tier - b.tier);
@@ -157,19 +170,19 @@ export class UI {
       const ups = prof.upgrades[p.id] || {};
       const prev = data.planes.filter(x => x.nation === p.nation && x.tier === p.tier - 1);
       const prevOk = !prev.length || prev.some(x => prof.unlocked.includes(x.id));
-      const bar = (name, v) => `<div class="stat"><span>${name}</span><div class="b"><i style="width:${Math.round(v * 100)}%"></i></div></div>`;
+      const bar = (name, v, ic) => `<div class="stat"><span>${svg(ic)}${name}</span><div class="b"><i style="width:${Math.round(v * 100)}%"></i></div></div>`;
       const weapons = p.guns.map(g => `${data.weapons[g.w].name} ×${g.count}`).concat(p.bombs ? [`${data.bombs[p.bombs.type].name} ×${p.bombs.count}`] : [])
         .concat(p.rockets ? [`${data.rockets[p.rockets.type].name} ×${p.rockets.count}`] : []).concat(p.gunners.length ? [`стрелков: ${p.gunners.length}`] : []);
       return `<div class="hcard"><div class="title"><b>${esc(p.name)}</b><span class="muted">${esc(CLASSES[p.class].name)} · ранг ${p.tier}</span></div>
         <canvas></canvas><div class="desc">${esc(p.desc)}</div>
-        ${bar('Скорость', p.vmax / maxV)}${bar('Манёвренность', p.turn / maxT)}${bar('Прочность', p.hp / maxH)}${bar('Огневая мощь', planeFirepower(p, data) / maxF)}
+        ${bar('Скорость', p.vmax / maxV, 'speed')}${bar('Манёвр', p.turn / maxT, 'flip')}${bar('Прочность', p.hp / maxH, 'shield')}${bar('Огонь', planeFirepower(p, data) / maxF, 'fire')}
         <div class="muted" style="font-size:12px;margin:4px 0">${Math.round(p.vmax * SPEED_TO_KMH)} км/ч · ${weapons.join(', ')}</div>
         ${own ? UPGRADE_TRACKS.map(t => {
           const l = ups[t] || 0;
-          return `<div class="upg"><span>${UPGRADE_NAMES[t]}</span><span class="pips">${[...Array(UPGRADE_MAX)].map((_, i) => `<i class="${i < l ? 'on' : ''}"></i>`).join('')}</span>
-            ${l < UPGRADE_MAX ? `<button class="btn small" data-up="${p.id}" data-track="${t}" ${prof.money < upgradeCost(p.tier, l) ? 'disabled' : ''}>${upgradeCost(p.tier, l)} ¤</button>` : '<span class="muted">макс.</span>'}</div>`;
+          return `<div class="upg"><span>${svg(UPG_ICON[t])}${UPGRADE_NAMES[t]}</span><span class="pips">${[...Array(UPGRADE_MAX)].map((_, i) => `<i class="${i < l ? 'on' : ''}"></i>`).join('')}</span>
+            ${l < UPGRADE_MAX ? `<button class="btn small" data-up="${p.id}" data-track="${t}" ${prof.money < upgradeCost(p.tier, l) ? 'disabled' : ''}>${svg('coin')}${upgradeCost(p.tier, l)}</button>` : `<span class="muted" title="максимум">${svg('star')}</span>`}</div>`;
         }).join('') : `<div class="row"><button class="btn primary" data-unlock="${p.id}" ${lvl < p.level || prof.money < p.cost || !prevOk ? 'disabled' : ''}>
-            Открыть за ${p.cost} ¤</button></div><div class="muted" style="font-size:12px">Требуется уровень ${p.level}${prevOk ? '' : ' и самолёт предыдущего ранга'}</div>`}
+            ${svg(lvl < p.level || !prevOk ? 'lock' : 'coin')}Открыть · ${p.cost}</button></div><div class="muted" style="font-size:12px">${svg('star')} уровень ${p.level}${prevOk ? '' : ' · нужен самолёт предыдущего ранга'}</div>`}
       </div>`;
     }).join('');
     $('hangar-list').querySelectorAll('.hcard').forEach((c, i) => requestAnimationFrame(() => planePreview(c.querySelector('canvas'), planes[i])));
@@ -185,7 +198,7 @@ export class UI {
     $('profile-body').innerHTML = `<h3>${esc(p.name)} — уровень ${lvl}</h3>
       <div class="stat"><span>Опыт</span><div class="b"><i style="width:${Math.round((p.xp - cur) / (next - cur) * 100)}%"></i></div><span style="width:auto">${p.xp}/${next}</span></div>
       <table class="list"><tbody>
-      <tr><td>Валюта</td><td>${p.money} ¤</td></tr>
+      <tr><td>${svg('coin')} Валюта</td><td>${p.money}</td></tr>
       <tr><td>Матчей / побед</td><td>${s.matches} / ${s.wins}</td></tr>
       <tr><td>Сбито самолётов</td><td>${s.kills}</td></tr><tr><td>Убито пилотов</td><td>${s.pilotKills}</td></tr>
       <tr><td>Смертей</td><td>${s.deaths}</td></tr><tr><td>K/D</td><td>${(s.kills / Math.max(1, s.deaths)).toFixed(2)}</td></tr>
@@ -201,11 +214,12 @@ export class UI {
     if (teams) title = res.winnerTeam === null || res.winnerTeam === undefined ? 'Ничья' : `Победа: ${TEAM_NAMES[res.winnerTeam]}`;
     else { const w = res.results.find(r => r.id === res.winnerId); title = w ? `Победитель: ${w.name}` : 'Итоги матча'; }
     $('results-title').textContent = title + (res.reason ? ` — ${res.reason}` : '');
-    $('results-table').innerHTML = `<thead><tr><th>Пилот</th>${teams ? '<th>Команда</th>' : ''}<th>Сбито</th><th>Пилотов</th><th>Смерти</th><th>Урон</th><th>Наземка</th><th>Очки</th><th>Опыт</th></tr></thead><tbody>` +
-      res.results.map(r => `<tr class="${r.id === app.myId ? 'me' : ''}"><td style="color:${r.color}">${r.won ? '🏆 ' : ''}${esc(r.name)}</td>
-        ${teams ? `<td style="color:${TEAM_COLORS[r.team]}">${TEAM_NAMES[r.team]}</td>` : ''}<td>${r.kills}</td><td>${r.pilotKills}</td><td>${r.deaths}</td>
+    const th = (ic, t) => `<th title="${t}">${svg(ic)}</th>`;
+    $('results-table').innerHTML = `<thead><tr><th>Пилот</th>${teams ? '<th></th>' : ''}${th('fire', 'Сбито самолётов')}${th('eject', 'Убито пилотов')}${th('skull', 'Смерти')}${th('burst', 'Урон')}${th('tank', 'Наземные цели')}${th('star', 'Очки')}${th('user', 'Опыт')}</tr></thead><tbody>` +
+      res.results.map(r => `<tr class="${r.id === app.myId ? 'me' : ''}"><td style="color:${r.color}">${r.won ? svg('crown') + ' ' : ''}${esc(r.name)}</td>
+        ${teams ? `<td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${TEAM_COLORS[r.team]}" title="${TEAM_NAMES[r.team]}"></span></td>` : ''}<td>${r.kills}</td><td>${r.pilotKills}</td><td>${r.deaths}</td>
         <td>${r.damage}</td><td>${r.ground}</td><td>${r.score}</td><td>${r.xp !== undefined ? '+' + r.xp : '—'}</td></tr>`).join('') + '</tbody>';
     const mine = res.results.find(r => r.id === app.myId);
-    $('results-reward').textContent = mine && mine.xp !== undefined ? `Награда: +${mine.xp} опыта, +${mine.money} ¤` : '';
+    $('results-reward').innerHTML = mine && mine.xp !== undefined ? `${svg('star')} +${mine.xp} &nbsp; ${svg('coin')} +${mine.money}` : '';
   }
 }

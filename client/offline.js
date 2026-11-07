@@ -21,7 +21,7 @@ export class OfflineGame {
     this.acc = 0;
     this.respawnT = 0;
     this.msg = 'Тренировка: W/S газ, A/D поворот, Space огонь, B бомба, F переворот. Esc — выход';
-    this.msgT = 6;
+    this.msgT = 15;
     this.spawn();
   }
 
@@ -56,16 +56,17 @@ export class OfflineGame {
     const me = p && !this.crashed ? {
       kind: 'plane', speed: Math.hypot(p.vx, p.vy), alt: p.y - Math.max(0, this.terrain.ground(p.x)), thr: p.thr, heat: p.heat,
       overheat: p.overheat, boosting: p.boosting, gunHeat: this.gunHeat, gunOverheat: this.gunOver, hpFrac: 1, parts: p.parts,
-      weapons: [...this.st.guns.map((g, i) => ({ label: g.wd.name + ' ×' + g.count, n: this.ammo[i] })),
-        ...(this.st.bombs ? [{ label: this.st.bombs.bd.name, n: this.bombsLeft }] : [])],
+      weapons: [...this.st.guns.map((g, i) => ({ icon: 'bullet', n: this.ammo[i], warn: this.gunOver })),
+        ...(this.st.bombs ? [{ icon: 'bomb', n: this.bombsLeft, key: 'B' }] : [])],
     } : null;
     const warnings = [];
-    if (p && p.stall) warnings.push({ text: p.spin ? 'ШТОПОР! Отпустите ручку' : 'СВАЛИВАНИЕ! Нос вниз' });
-    if (p && p.overheat) warnings.push({ text: 'Двигатель перегрет', color: '#ffb04a' });
+    if (p && p.stall) warnings.push({ text: p.spin ? 'Штопор — отпустите ручку' : 'Сваливание — нос вниз, газ' });
+    if (p && p.overheat) warnings.push({ text: 'Двигатель перегрет', icon: 'temp', color: '#ffb04a' });
+    this.input.setTouchInfo({ hasBombs: !!this.st.bombs, bombs: this.bombsLeft, hasRockets: false, rockets: 0, canSpawn: false });
     drawHud(this.r, {
       me, mobile: this.input.touch,
       minimap: { terrain: this.terrain, teamColor: t => t === 0 ? '#4b8fe8' : '#e5533f', points: p ? [{ x: p.x, y: p.y, color: '#ffe04a', me: true }] : [] },
-      warnings, center: this.crashed ? 'Самолёт разбит' : (this.msgT > 0 ? null : null),
+      warnings, center: this.crashed ? 'Самолёт разбит' : null,
       hint: this.msgT > 0 ? this.msg : null,
     });
   }
