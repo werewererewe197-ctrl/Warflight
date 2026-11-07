@@ -4,7 +4,7 @@ import { DT, PHYS_SUBSTEPS, TICK_RATE, clamp, wrapAngle } from '../../shared/con
 import { createPlane, tickPlane, createPilot, tickPilot } from '../../shared/physics.js';
 import { getTerrain } from '../../shared/maps.js';
 import {
-  DATA, MAXUP, SKY, stats, maxLevelSpeed, verticalClimb, accelTime, bestLoop, turnRateAt, loopTime, stallSpeed, speed, step,
+  DATA, MAXUP, SKY, stats, maxLevelSpeed, verticalClimb, accelTime, bestLoop, turnRateAt, loopTime, stallSpeed, speed, step, pathHold,
 } from '../tools/flightlab.js';
 
 const FIGHTERS = DATA.planes.filter(p => p.class === 'fighter').map(p => p.id);
@@ -47,9 +47,9 @@ describe('энергия и скорость', () => {
     expect(stalled).toBe(true);
   });
 
-  it('тяжёлый бомбардировщик разгоняется медленнее истребителя своей нации', () => {
+  it('тяжёлый бомбардировщик разгоняется медленнее истребителя своей нации (150 → 220 ед/с)', () => {
     for (const n of ['us', 'su', 'uk', 'de', 'jp']) {
-      const f = accelTime(stats(`${n}_f1`), 0.5, 0.85), b = accelTime(stats(`${n}_b3`), 0.5, 0.85);
+      const f = accelTime(stats(`${n}_f1`), 150, 220, false, true), b = accelTime(stats(`${n}_b3`), 150, 220, false, true);
       expect(b, `${n}: бомбардировщик ${b.toFixed(1)} с, истребитель ${f.toFixed(1)} с`).toBeGreaterThan(f * 1.25);
     }
   });
@@ -115,8 +115,9 @@ describe('манёвренность', () => {
       const p = createPlane(st, 0, 1500, 0, 280); p.thr = 1;
       if (inverted) { p.roll = -1; p.rollT = -1; }
       let alphaSum = 0;
+      const ap = pathHold();
       for (let i = 0; i < 300; i++) {
-        step(p, st, { p: clamp(-p.vy * 0.03 + wrapAngle(0 - Math.atan2(p.vy, p.vx)) * 2, -1, 1), t: 1 });
+        step(p, st, { p: ap(p, clamp((1500 - p.y) * 0.002, -0.1, 0.1)), t: 1 });
         if (i > 150) alphaSum += wrapAngle(p.a - Math.atan2(p.vy, p.vx));
       }
       return { dy: p.y - 1500, alpha: alphaSum / 149 };

@@ -1,5 +1,5 @@
 // Этап 1: офлайн-тренировка — свободный полёт с локальной физикой, стрельбой и бомбами по мишеням.
-import { DT, PHYS_SUBSTEPS, GRAVITY, clamp, wrapAngle } from '../shared/constants.js';
+import { DT, PHYS_SUBSTEPS, GRAVITY, UNIT_M, clamp, wrapAngle } from '../shared/constants.js';
 import { buildStats, createPlane, tickPlane, createPilot, tickPilot } from '../shared/physics.js';
 import { getTerrain } from '../shared/maps.js';
 import { drawHud } from './hud.js';
@@ -54,7 +54,7 @@ export class OfflineGame {
     });
     this.msgT -= dt;
     const me = p && !this.crashed ? {
-      kind: 'plane', speed: Math.hypot(p.vx, p.vy), alt: p.y - Math.max(0, this.terrain.ground(p.x)), thr: p.thr, heat: p.heat,
+      kind: 'plane', speed: Math.hypot(p.vx, p.vy), alt: (p.y - Math.max(0, this.terrain.ground(p.x))) * UNIT_M, thr: p.thr, heat: p.heat,
       overheat: p.overheat, boosting: p.boosting, gunHeat: this.gunHeat, gunOverheat: this.gunOver, hpFrac: 1, parts: p.parts,
       weapons: [...this.st.guns.map((g, i) => ({ icon: 'bullet', n: this.ammo[i], warn: this.gunOver })),
         ...(this.st.bombs ? [{ icon: 'bomb', n: this.bombsLeft, key: 'B' }] : [])],

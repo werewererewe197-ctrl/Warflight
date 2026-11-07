@@ -118,7 +118,9 @@ export class GroundForces {
       const dx = Math.max(0, Math.abs(x - o.x) - o.w / 2);
       const dy = Math.max(0, o.y - y, y - (o.y + o.h));
       const d = Math.hypot(dx, dy);
-      if (d < r) this.damage(o, dmg * (1 - d / r) * 1.1 + dmg * 0.15, owner);
+      // штаб — укреплённый бункер: от взрывов получает 35% урона (иначе один бомбардировщик сносит его за заход)
+      const fort = o.type === 'hq' ? 0.35 : 1;
+      if (d < r) this.damage(o, (dmg * (1 - d / r) * 1.1 + dmg * 0.15) * fort, owner);
     }
   }
 

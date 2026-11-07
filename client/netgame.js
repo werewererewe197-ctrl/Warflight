@@ -1,7 +1,8 @@
 // Сетевой бой на клиенте: отправка ввода, предсказание своего самолёта/пилота,
 // сверка с сервером (reconciliation), интерполяция чужих объектов, эффекты и HUD.
-import { DT, TICK_RATE, PHYS_SUBSTEPS, INTERP_DELAY_TICKS, SNAPSHOT_EVERY, MODES, TEAM_COLORS, TEAM_NAMES, NATIONS, clamp, lerp, lerpAngle, wrapAngle } from '../shared/constants.js';
-import { buildStats, tickPlane, unpackPlane, tickPilot, unpackPilot } from '../shared/physics.js';
+import { DT, TICK_RATE, PHYS_SUBSTEPS, INTERP_DELAY_TICKS, SNAPSHOT_EVERY, UNIT_M, MODES, TEAM_COLORS, TEAM_NAMES, NATIONS, clamp, lerp, lerpAngle, wrapAngle } from '../shared/constants.js';
+import { buildStats, tickPlane, unpackPlane, tickPilot, unpackPilot, leadSolution, BULLET_GRAVITY } from '../shared/physics.js';
+export { leadSolution, BULLET_GRAVITY };
 import { getTerrain } from '../shared/maps.js';
 import { PF, CF, PROJ_NAMES } from '../shared/protocol.js';
 import { drawHud } from './hud.js';
@@ -384,7 +385,7 @@ export class NetGame {
       touchMode = 'plane';
       const p = this.pred, st = this.myStats;
       info.me = {
-        kind: 'plane', speed: Math.hypot(p.vx, p.vy), alt: p.y - this.terrain.ground(p.x), thr: p.thr, heat: p.heat, overheat: p.overheat, boosting: p.boosting,
+        kind: 'plane', speed: Math.hypot(p.vx, p.vy), alt: (p.y - this.terrain.ground(p.x)) * UNIT_M, thr: p.thr, heat: p.heat, overheat: p.overheat, boosting: p.boosting,
         gunHeat: me.gh || 0, gunOverheat: !!me.go, hpFrac: me.hp / me.mhp, parts: p.parts, fire: !!me.fire,
         weapons: [
           ...st.guns.map((g, i) => ({ icon: 'bullet', n: me.am ? me.am[i] : 0, sub: caliber(g.wd.name), warn: !!me.go })),
@@ -479,22 +480,6 @@ export class NetGame {
     }).join('');
     return `<table class="list"><thead><tr><th>Пилот</th><th>Самолёт</th><th>Сбито</th><th>Смерти</th><th>Наземка</th><th>Очки</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   }
-}
-
-// Задача встречи: куда направить ствол, чтобы пуля (скорость стрелка + muzzle, гравитация пуль)
-// попала в цель с относительной скоростью (wx, wy). Возвращает [dx, dy, t] — направление «упреждения» и время.
-export const BULLET_GRAVITY = 30;
-export function leadSolution(rx, ry, wx, wy, muzzle) {
-  let t = Math.hypot(rx, ry) / muzzle;
-  let ax = rx, ay = ry;
-  for (let k = 0; k < 12; k++) {
-    ax = rx + wx * t;
-    ay = ry + wy * t + 0.5 * BULLET_GRAVITY * t * t;    // целимся выше на величину падения пули
-    const nt = Math.hypot(ax, ay) / muzzle;
-    if (Math.abs(nt - t) < 1e-4) { t = nt; break; }
-    t = nt;
-  }
-  return isFinite(t) && t > 0 ? [ax, ay, t] : null;
 }
 
 function caliber(name) { const m = /\d+(\.\d+)?/.exec(name || ''); return m ? m[0] + ' мм' : ''; }

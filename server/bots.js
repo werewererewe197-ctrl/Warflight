@@ -1,14 +1,19 @@
 // ИИ-пилоты: воздушный бой, атака наземных целей, уход от земли и сваливания. 3 уровня сложности.
 import { CEILING, GRAVITY, clamp, wrapAngle } from '../shared/constants.js';
+import { leadSolution } from '../shared/physics.js';
 
 const NAMES = ['Сокол', 'Беркут', 'Ястреб', 'Кречет', 'Стриж', 'Гром', 'Буран', 'Вихрь', 'Ворон', 'Филин', 'Шторм', 'Молот',
   'Ace', 'Maverick', 'Baron', 'Viper', 'Ghost', 'Hawk', 'Raven', 'Blaze'];
 export function botName(i) { return '[BOT] ' + NAMES[(i * 7 + Math.floor(Math.random() * NAMES.length)) % NAMES.length]; }
 
+// Уровни сложности: точность и упреждение, реакция, дисциплина огня, уклонение, работа с энергией.
+//  aim — ошибка прицеливания, lead — доля учтённого упреждения, cone — допустимое отклонение для огня,
+//  hold — сколько держать цель в прицеле перед очередью, reacq — как часто пересматривать цель,
+//  energy — минимальная скорость (в Vs), ниже которой ас не ввязывается в вираж, а разгоняется.
 const DIFF = [
-  { aim: 0.16, react: 0.75, lead: 0.55, cone: 0.16, range: 520, turn: 0.75, evade: 0.3, wobble: 0.5, boost: 0.3 },
-  { aim: 0.07, react: 0.4, lead: 0.85, cone: 0.11, range: 640, turn: 0.9, evade: 0.6, wobble: 0.25, boost: 0.6 },
-  { aim: 0.025, react: 0.18, lead: 1.0, cone: 0.08, range: 760, turn: 1.0, evade: 0.9, wobble: 0.1, boost: 0.9 },
+  { aim: 0.24, react: 1.0, lead: 0.35, cone: 0.24, range: 430, turn: 0.6, evade: 0.15, wobble: 0.8, boost: 0.1, hold: 0.6, reacq: 3.5, energy: 0 },
+  { aim: 0.08, react: 0.45, lead: 0.8, cone: 0.12, range: 600, turn: 0.85, evade: 0.55, wobble: 0.3, boost: 0.5, hold: 0.25, reacq: 2.0, energy: 1.3 },
+  { aim: 0.015, react: 0.15, lead: 1.0, cone: 0.05, range: 720, turn: 1.0, evade: 0.9, wobble: 0.06, boost: 0.9, hold: 0.05, reacq: 1.0, energy: 1.6 },
 ];
 
 export function botThink(g, u, dt) {
@@ -47,12 +52,30 @@ export function botThink(g, u, dt) {
 
   let desired = null, urgent = false, fire = false;
 
-  // 1. земля впереди
+  // 1. земля впереди: ближняя опасность — тянем вверх; хребет, через который не перелезть, — разворот заранее
   let groundAhead = -1e9;
   for (let k = 0.4; k <= 3; k += 0.5) groundAhead = Math.max(groundAhead, t.ground(p.x + p.vx * k));
-  const futureY = p.y + p.vy * 1.6 - (p.vy < 0 ? 0 : 0);
+  // горизонт прогноза больше у тяжёлых и инертных самолётов
+  const horizon = 1.6 + st.inertia * 4 + v / 400;
+  const futureY = p.y + p.vy * horizon;
   const alt = p.y - t.ground(p.x);
-  if (futureY < groundAhead + 130 || alt < 110) { desired = dirX > 0 ? 0.75 : Math.PI - 0.75; urgent = true; }
+  // оценка возможного набора высоты (тяжёлым и слабым самолётам — пологий набор)
+  const climbSin = clamp(st.thrust * 0.6 / GRAVITY, 0.08, 0.4);
+  const climbRate = Math.max(15, v * climbSin);
+  const climbAng = v > vs * 1.6 ? Math.min(0.75, climbSin * 2.2) : Math.min(0.3, climbSin * 1.5);   // на малой скорости не задираем нос
+  let wall = false;
+  for (let k = 1; k <= 7; k += 0.5) {
+    const gx = t.ground(p.x + Math.cos(Math.atan2(p.vy, p.vx)) * v * k);
+    if (gx + 140 > p.y + climbRate * k) { wall = true; break; }
+  }
+  if (futureY < groundAhead + 130 || alt < 110) { desired = dirX > 0 ? climbAng : Math.PI - climbAng; urgent = true; }
+  else if (wall) {
+    // хребет не перелезть: разворот с набором (тяжёлые — пологий, чтобы не свалиться)
+    desired = alt > 400 && v > vs * 1.5 ? (dirX > 0 ? Math.PI - 0.4 : 0.4) : (dirX > 0 ? climbAng : Math.PI - climbAng);
+    urgent = true;
+  }
+  // безопасная высота над рельефом впереди (на 2,5 км по курсу) — для патруля и бомбометания
+  b.safeAlt = safeAltitude(t, p.x, dirX, 2500) + (st.def.class === 'bomber' ? 320 : 220);
 
   // 2. сваливание
   if (!urgent && (p.stall || v < vs * 1.12)) {
@@ -94,7 +117,7 @@ export function botThink(g, u, dt) {
   if (!urgent) {
     b.retarget -= dt;
     if (b.retarget <= 0 || (b.target && (!g.planes.has(b.target.eid) || b.target.p.dead || !b.target.owner))) {
-      b.retarget = 1.5 + Math.random() * 1.5;
+      b.retarget = D.reacq * (0.7 + Math.random() * 0.6);
       b.target = pickAirTarget(g, u, pl);
       b.ground = pickGroundTarget(g, u, pl);
     }
@@ -114,17 +137,22 @@ export function botThink(g, u, dt) {
     } else if (preferGround) {
       const r = attackGround(g, u, pl, gt, D, b);
       desired = r.desired; fire = r.fire; if (r.bomb) inp.b = 1; if (r.rocket) inp.r = 1;
+    } else if (air && D.energy && v < vs * D.energy && airDist > 250) {
+      // мало скорости — опытный пилот не крутит вираж, а разгоняется пологим снижением
+      desired = (dirX > 0 ? 0 : Math.PI) + (dirX > 0 ? -1 : 1) * (alt > 350 ? 0.35 : 0.05);
+      if (p.heat < 0.6) inp.bo = 1;
     } else if (air) {
       const w = st.guns[0] ? st.guns[0].wd : { speed: 900 };
-      // упреждение
+      // упреждение (ас — точное, с падением пули; новичок учитывает лишь часть)
       const rx = air.p.x - p.x, ry = air.p.y - p.y;
-      let tt = Math.hypot(rx, ry) / w.speed;
-      let ax = rx, ay = ry;
-      for (let k = 0; k < 2; k++) { ax = rx + (air.p.vx - p.vx) * tt * D.lead; ay = ry + (air.p.vy - p.vy) * tt * D.lead; tt = Math.hypot(ax, ay) / w.speed; }
+      const sol = leadSolution(rx, ry, (air.p.vx - p.vx) * D.lead, (air.p.vy - p.vy) * D.lead, w.speed) || [rx, ry, 0];
+      const [ax, ay] = sol;
       desired = Math.atan2(ay, ax) + b.noise * D.aim * 3;
       const off = Math.abs(wrapAngle(desired - p.a));
       const d = Math.hypot(ax, ay);
-      fire = d < D.range && off < D.cone + 18 / Math.max(80, d);
+      const onTarget = d < D.range && off < D.cone + 14 / Math.max(80, d);
+      b.aligned = onTarget ? (b.aligned || 0) + dt : 0;
+      fire = onTarget && b.aligned >= D.hold;
       // не врезаться в цель: при встречном сближении уходим вверх/вниз
       const closing = ((air.p.vx - p.vx) * rx + (air.p.vy - p.vy) * ry) / Math.max(1, airDist);
       if (airDist < 90 + Math.max(0, -closing) * 0.35) { desired = p.a + (alt > 300 && ry > 0 ? -0.9 : 0.9); fire = false; }
@@ -135,8 +163,8 @@ export function botThink(g, u, dt) {
       // патруль: набираем высоту в сторону центра
       const cx = t.width / 2;
       const toRight = Math.abs(p.x - cx) < 1500 ? dirX > 0 : p.x < cx;
-      const wantAlt = t.ground(p.x) + 700;
-      desired = (toRight ? 0 : Math.PI) + (toRight ? 1 : -1) * clamp((wantAlt - p.y) / 800, -0.4, 0.4);
+      const wantAlt = Math.max(t.ground(p.x) + 700, b.safeAlt);
+      desired = (toRight ? 0 : Math.PI) + (toRight ? 1 : -1) * clamp((wantAlt - p.y) / 800, -0.4, Math.max(0.15, climbAng));
     }
   }
   if (desired === null) desired = p.a;
@@ -156,6 +184,12 @@ function finish(inp, desired, p, urgent, D, b, v, vs) {
   const wantRoll = Math.cos(p.a) >= 0 ? 1 : -1;
   if (b.flipCD <= 0 && p.rollT !== wantRoll && Math.abs(Math.cos(p.a)) > 0.45) { inp.fl = 1; b.flipCD = 0.8 + D.react; }
   return inp;
+}
+
+function safeAltitude(t, x, dir, dist) {
+  let m = -1e9;
+  for (let k = 0; k <= dist; k += 150) m = Math.max(m, t.ground(x + dir * k));
+  return m;
 }
 
 function pickAirTarget(g, u, pl) {
@@ -208,7 +242,7 @@ function attackGround(g, u, pl, gt, D, b) {
   const groundY = t.ground(p.x);
   if (pc.bombs > 0 && (st.def.class === 'bomber' || pc.rockets === 0 && st.guns.length === 0 || st.def.class !== 'fighter' && Math.abs(dx) > 400)) {
     // горизонтальное бомбометание
-    const wantAlt = Math.max(gt.y + (st.def.class === 'bomber' ? 520 : 320), t.ground(gt.x) + 300);
+    const wantAlt = Math.max(gt.y + (st.def.class === 'bomber' ? 520 : 320), t.ground(gt.x) + 300, b.safeAlt || 0);
     const toward = dx >= 0 ? 0 : Math.PI;
     if (Math.sign(dx) !== dirX && Math.abs(dx) < 900) {
       // пролетели — разворот на дистанции
@@ -231,7 +265,9 @@ function attackGround(g, u, pl, gt, D, b) {
   const dist = Math.hypot(dx, ty - p.y);
   const ang = Math.atan2(ty - p.y, dx);
   const alt = p.y - groundY;
-  if (Math.sign(dx) !== dirX || dist < 160 || alt < 150) {
+  const v = Math.hypot(p.vx, p.vy);
+  const timeToImpact = p.vy < 0 ? alt / -p.vy : 99;
+  if (Math.sign(dx) !== dirX || dist < 160 || alt < 170 + v * 0.25 || timeToImpact < 2 + st.inertia * 4) {
     // выход из атаки и заход на новый круг
     res.desired = dirX > 0 ? 0.55 : Math.PI - 0.55;
     if (Math.abs(dx) > 1200) res.desired = (dx > 0 ? 0 : Math.PI) + (dx > 0 ? 0.25 : -0.25);
@@ -239,7 +275,7 @@ function attackGround(g, u, pl, gt, D, b) {
   }
   if (dist > 1100 || Math.sin(ang) > -0.15) {
     // выход на рубеж атаки: держим высоту ~500
-    const wantAlt = groundY + 520;
+    const wantAlt = Math.max(groundY + 520, b.safeAlt || 0);
     res.desired = (dx > 0 ? 0 : Math.PI) + (dx > 0 ? 1 : -1) * clamp((wantAlt - p.y) / 500, -0.3, 0.3);
     return res;
   }

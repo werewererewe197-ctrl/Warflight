@@ -20,32 +20,43 @@ function keepBand(p) { if (p.y > 2200) p.y -= 1200; if (p.y < 800) p.y += 1200; 
 
 function step(p, st, inp, terrain = SKY) { tickPlane(p, st, inp, DT, PHYS_SUBSTEPS, terrain); }
 
+// Автопилот удержания угла траектории: ПИ-регулятор (ручка задаёт угол атаки, интеграл находит балансировку).
+export function pathHold() {
+  let i = 0, prev = null;
+  return (p, target) => {
+    const g = path(p);
+    const rate = prev === null ? 0 : wrapAngle(g - prev) / DT;
+    prev = g;
+    const e = wrapAngle(target - g);
+    i = clamp(i + e * DT * 1.5, -1, 1);
+    return clamp(e * 2.5 - rate * 0.6 + i, -1, 1);   // ПИД: демпфирование по скорости поворота траектории
+  };
+}
+
 // Максимальная скорость в горизонте (полный газ, при желании — форсаж).
-export function maxLevelSpeed(st, boost = false, secs = 70) {
+export function maxLevelSpeed(st, boost = false, secs = 90) {
   const p = createPlane(st, 0, 1500, 0, st.vmax * 0.9); p.thr = 1;
-  let heatGuard = 0;
+  const hold = pathHold();
   for (let i = 0; i < secs / DT; i++) {
-    const pitch = clamp(-p.vy * 0.02 + wrapAngle(0 - path(p)) * 2, -1, 1);
-    // форсаж ограничен перегревом — для «паспортной» скорости с форсажем охлаждение не моделируем
     if (boost) { p.heat = 0; p.overheat = false; }
-    step(p, st, { p: pitch, t: 1, bo: boost ? 1 : 0 });
-    keepBand(p); heatGuard++;
+    step(p, st, { p: hold(p, clamp(-p.vy * 0.002, -0.05, 0.05)), t: 1, bo: boost ? 1 : 0 });
+    keepBand(p);
   }
   return speed(p);
 }
 
-// Установившаяся скороподъёмность при заданной приборной скорости V.
-export function climbRateAt(st, V, secs = 45) {
-  const p = createPlane(st, 0, 1200, 0.2, V); p.thr = 1;
-  let gam = 0.2, sum = 0, n = 0, stalled = false;
+// Установившаяся скороподъёмность при заданной скорости V: внешний контур держит скорость углом траектории.
+export function climbRateAt(st, V, secs = 60) {
+  const p = createPlane(st, 0, 1200, 0, V); p.thr = 1;
+  const hold = pathHold();
+  let gam = 0, sum = 0, n = 0, stalled = false;
   for (let i = 0; i < secs / DT; i++) {
     const v = speed(p);
-    gam = clamp(gam + clamp((v - V) * 0.0025, -0.03, 0.03), -0.4, 1.55);
-    const pitch = clamp(wrapAngle(gam - path(p)) * 3 + wrapAngle(gam - p.a) * 0.8, -1, 1);
-    step(p, st, { p: pitch, t: 1 });
+    gam = clamp(gam + clamp((v - V) * 0.0008, -0.004, 0.004), -0.5, 1.4);
+    step(p, st, { p: hold(p, gam), t: 1 });
     if (p.stall) stalled = true;
     keepBand(p);
-    if (i * DT > secs - 12) { sum += p.vy; n++; }
+    if (i * DT > secs - 15) { sum += p.vy; n++; }
   }
   return { vy: sum / n, stalled, gamma: gam };
 }
@@ -132,15 +143,17 @@ export function turnRateAt(st, V) {
   return turned / (N * DT);
 }
 
-// Время разгона в горизонте от v0 до v1 (полный газ).
-export function accelTime(st, v0k = 0.5, v1k = 0.9, boost = false) {
-  const p = createPlane(st, 0, 1500, 0, st.vmax * v0k); p.thr = 1;
+// Время разгона в горизонте (полный газ): по умолчанию от 50% до 90% собственной vmax;
+// abs=true — от v0k до v1k в абсолютных ед/с (сравнение самолётов между собой).
+export function accelTime(st, v0k = 0.5, v1k = 0.9, boost = false, abs = false) {
+  const v0 = abs ? v0k : st.vmax * v0k, v1 = abs ? v1k : st.vmax * v1k;
+  const p = createPlane(st, 0, 1500, 0, v0); p.thr = 1;
+  const hold = pathHold();
   for (let i = 0; i < 120 / DT; i++) {
-    const pitch = clamp(-p.vy * 0.02 + wrapAngle(0 - path(p)) * 2, -1, 1);
     if (boost) { p.heat = 0; p.overheat = false; }
-    step(p, st, { p: pitch, t: 1, bo: boost ? 1 : 0 });
+    step(p, st, { p: hold(p, clamp(-p.vy * 0.002, -0.05, 0.05)), t: 1, bo: boost ? 1 : 0 });
     keepBand(p);
-    if (speed(p) >= st.vmax * v1k) return (i + 1) * DT;
+    if (speed(p) >= v1) return (i + 1) * DT;
   }
   return Infinity;
 }
@@ -148,10 +161,10 @@ export function accelTime(st, v0k = 0.5, v1k = 0.9, boost = false) {
 // Скорость, при которой наступает сваливание при плавном торможении в горизонте (газ 0).
 export function stallSpeed(st) {
   const p = createPlane(st, 0, 1500, 0, st.vstall * 1.6); p.thr = 0;
+  const hold = pathHold();
   for (let i = 0; i < 60 / DT; i++) {
-    const pitch = clamp(-p.vy * 0.03 + wrapAngle(0 - path(p)) * 2, -1, 1);
     const v = speed(p);
-    step(p, st, { p: pitch, ta: 0 });
+    step(p, st, { p: hold(p, 0), ta: 0 });
     keepBand(p);
     if (p.stall) return v;
   }

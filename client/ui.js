@@ -1,6 +1,6 @@
 // DOM-интерфейс: меню, список лобби, настройки, комната, ангар, профиль, итоги.
 import { MODES, NATIONS, CLASSES, TEAM_COLORS, TEAM_NAMES, DEFAULT_SETTINGS, BOT_DIFFICULTY, UPGRADE_TRACKS, UPGRADE_NAMES, UPGRADE_MAX,
-  upgradeCost, levelFromXp, xpForLevel, SPEED_TO_KMH } from '../shared/constants.js';
+  UPGRADE_EFFECTS, upgradeCost, levelFromXp, xpForLevel, SPEED_TO_KMH } from '../shared/constants.js';
 import { MAPS } from '../shared/maps.js';
 import { drawPlaneShape } from './render.js';
 import { esc } from './netgame.js';
@@ -8,6 +8,19 @@ import { svg } from './icons.js';
 
 const $ = id => document.getElementById(id);
 const UPG_ICON = { engine: 'engine', armor: 'shield', damage: 'fire', ammo: 'bullet', accuracy: 'target' };
+// Заявленный эффект одного уровня улучшения (те же числа использует физика/сервер).
+const pct = v => Math.round(v * 100) + '%';
+export function upgradeEffectText(t) {
+  const e = UPGRADE_EFFECTS[t];
+  switch (t) {
+    case 'engine': return `+${pct(e.thrust)} тяги`;
+    case 'armor': return `+${pct(e.hp)} прочности, +${Math.round(e.armor * 100)} п.п. брони`;
+    case 'damage': return `+${pct(e.dmg)} урона`;
+    case 'ammo': return `+${pct(e.ammo)} патронов`;
+    case 'accuracy': return `−${pct(e.spread)} разброса и отдачи`;
+  }
+  return '';
+}
 
 export function planePreview(canvas, def, parts) {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -165,7 +178,10 @@ export class UI {
     $('hangar-tabs').innerHTML = Object.entries(NATIONS).map(([k, n]) => `<button class="btn ${k === this.hangarNation ? 'sel' : ''}" data-n="${k}">${esc(n.name)}</button>`).join('');
     $('hangar-tabs').querySelectorAll('button').forEach(b => b.onclick = () => { this.hangarNation = b.dataset.n; this.renderHangar(); });
     const planes = data.planes.filter(p => p.nation === this.hangarNation).sort((a, b) => a.tier - b.tier);
-    const maxV = Math.max(...data.planes.map(p => p.vmax)), maxT = Math.max(...data.planes.map(p => p.turn)), maxH = Math.max(...data.planes.map(p => p.hp));
+    // манёвр ∝ √gmax / Vs (скорость разворота на угловой скорости), скороподъёмность ∝ удельной тяге
+    const man = p => Math.sqrt(p.gmax || 4) / p.vstall;
+    const maxV = Math.max(...data.planes.map(p => p.vmax)), maxT = Math.max(...data.planes.map(man)), maxH = Math.max(...data.planes.map(p => p.hp));
+    const maxC = Math.max(...data.planes.map(p => p.thrust));
     const maxF = Math.max(...data.planes.map(p => planeFirepower(p, data)));
     $('hangar-list').innerHTML = planes.map(p => {
       const own = prof.unlocked.includes(p.id);
@@ -177,11 +193,11 @@ export class UI {
         .concat(p.rockets ? [`${data.rockets[p.rockets.type].name} ×${p.rockets.count}`] : []).concat(p.gunners.length ? [`стрелков: ${p.gunners.length}`] : []);
       return `<div class="hcard"><div class="title"><b>${esc(p.name)}</b><span class="muted">${esc(CLASSES[p.class].name)} · ранг ${p.tier}</span></div>
         <canvas></canvas><div class="desc">${esc(p.desc)}</div>
-        ${bar('Скорость', p.vmax / maxV, 'speed')}${bar('Манёвр', p.turn / maxT, 'flip')}${bar('Прочность', p.hp / maxH, 'shield')}${bar('Огонь', planeFirepower(p, data) / maxF, 'fire')}
+        ${bar('Скорость', p.vmax / maxV, 'speed')}${bar('Манёвр', man(p) / maxT, 'flip')}${bar('Подъём', p.thrust / maxC, 'alt')}${bar('Прочность', p.hp / maxH, 'shield')}${bar('Огонь', planeFirepower(p, data) / maxF, 'fire')}
         <div class="muted" style="font-size:12px;margin:4px 0">${Math.round(p.vmax * SPEED_TO_KMH)} км/ч · ${weapons.join(', ')}</div>
         ${own ? UPGRADE_TRACKS.map(t => {
           const l = ups[t] || 0;
-          return `<div class="upg"><span>${svg(UPG_ICON[t])}${UPGRADE_NAMES[t]}</span><span class="pips">${[...Array(UPGRADE_MAX)].map((_, i) => `<i class="${i < l ? 'on' : ''}"></i>`).join('')}</span>
+          return `<div class="upg" title="${upgradeEffectText(t)} за уровень"><span>${svg(UPG_ICON[t])}${UPGRADE_NAMES[t]} <small class="muted">${upgradeEffectText(t)}</small></span><span class="pips">${[...Array(UPGRADE_MAX)].map((_, i) => `<i class="${i < l ? 'on' : ''}"></i>`).join('')}</span>
             ${l < UPGRADE_MAX ? `<button class="btn small" data-up="${p.id}" data-track="${t}" ${prof.money < upgradeCost(p.tier, l) ? 'disabled' : ''}>${svg('coin')}${upgradeCost(p.tier, l)}</button>` : `<span class="muted" title="максимум">${svg('star')}</span>`}</div>`;
         }).join('') : `<div class="row"><button class="btn primary" data-unlock="${p.id}" ${lvl < p.level || prof.money < p.cost || !prevOk ? 'disabled' : ''}>
             ${svg(lvl < p.level || !prevOk ? 'lock' : 'coin')}Открыть · ${p.cost}</button></div><div class="muted" style="font-size:12px">${svg('star')} уровень ${p.level}${prevOk ? '' : ' · нужен самолёт предыдущего ранга'}</div>`}

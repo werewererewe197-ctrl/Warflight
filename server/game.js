@@ -363,6 +363,10 @@ export class Game {
     const c = u.pilot;
     tickPilot(c, inp, DT, PHYS_SUBSTEPS, this.terrain, this.terrain.width);
     if (c.contact === 'splat') { this.killPilot(u, null, 'crash'); return; }
+    if (c.landingDamage > 0) {                          // ушибся при падении (прыжок с обрыва и т.п.)
+      u.pilotHp -= c.landingDamage; c.landingDamage = 0;
+      if (u.pilotHp <= 0) { this.killPilot(u, null, 'crash'); return; }
+    }
     if (c.ground || c.swim) u.pilotRespawnT -= DT;
     // стрельба из автомата
     u.pilotGunT -= DT;
@@ -407,12 +411,14 @@ export class Game {
     pl.protect = Math.max(0, pl.protect - DT);
     tickPlane(p, st, inp, DT, PHYS_SUBSTEPS, this.terrain);
     sanityCheckPlane(p, st);
+    // жёсткая посадка: урон по скорости удара (рассчитан физикой)
+    if (p.impact > 0) { const d = p.impact; p.impact = 0; this.damagePlane(pl, d, 'hull', null, 'crash', true); if (!this.planes.has(pl.eid)) return; }
     p.inCloud = this.terrain.inCloud(p.x, p.y);
     if (p.contact === 'crash' || p.contact === 'water') { this.crashPlane(pl, p.contact); return; }
     // столкновение со зданиями
     if (!p.ground) {
       const hitObj = this.ground.solidAt(p.x, p.y);
-      if (hitObj) { this.ground.damage(hitObj, 400, u, true); this.crashPlane(pl, 'crash'); return; }
+      if (hitObj) { this.ground.damage(hitObj, hitObj.type === 'hq' ? 120 : 400, u, true); this.crashPlane(pl, 'crash'); return; }
     }
     if (!u || p.dead) {
       // сбитый/брошенный самолёт: падает и горит
@@ -650,12 +656,14 @@ export class Game {
       if (this.time - (a.collideT || -9) < 0.5) continue;
       a.collideT = b.collideT = this.time;
       const rel = Math.hypot(a.p.vx - b.p.vx, a.p.vy - b.p.vy);
-      const dmg = 20 + rel * 0.5;
+      // урон от тарана зависит от относительной скорости и массы встречного самолёта
+      const base = 20 + rel * 0.5, ma = a.st.mass || 4, mb = b.st.mass || 4;
+      const dmgA = base * 2 * mb / (ma + mb), dmgB = base * 2 * ma / (ma + mb);
       this.events.push(['hit', Math.round((a.p.x + b.p.x) / 2), Math.round((a.p.y + b.p.y) / 2), 0, 1]);
       const ao = a.owner, bo = b.owner;
       if (ao && bo && !this.hostile(ao, bo)) continue;   // свои не таранят друг друга
-      this.damagePlane(a, dmg, 'wing', bo, 'ram', true);
-      this.damagePlane(b, dmg, 'wing', ao, 'ram', true);
+      this.damagePlane(a, dmgA, 'wing', bo, 'ram', true);
+      this.damagePlane(b, dmgB, 'wing', ao, 'ram', true);
     }
   }
 
@@ -696,7 +704,9 @@ export class Game {
       // наземные объекты
       if (!hit) {
         const o = this.ground.hitTest(b.x, b.y, dx, dy, b.o, b.team);
-        if (o) { this.ground.damage(o, b.dmg * (b.explosive ? 1.3 : 0.6), b.o); this.events.push(['hit', Math.round(b.x + dx), Math.round(b.y + dy), 0, 0]); hit = true; }
+        // капитальные постройки (штаб, ангар, здания) почти не берутся пулемётами — нужны бомбы, ракеты, пушки
+        const hard = o && (o.type === 'hq' || o.type === 'hangar' || o.type === 'building');
+        if (o) { this.ground.damage(o, b.dmg * (b.explosive ? (hard ? 0.6 : 1.3) : (hard ? 0.15 : 0.6)), b.o); this.events.push(['hit', Math.round(b.x + dx), Math.round(b.y + dy), 0, 0]); hit = true; }
       }
       b.x += dx; b.y += dy; b.vy -= 30 * DT;
       if (!hit && b.y < this.terrain.ground(b.x)) hit = true;

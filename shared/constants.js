@@ -46,7 +46,21 @@ export const UPGRADE_NAMES = {
   engine: 'Двигатель', armor: 'Броня', damage: 'Урон оружия', ammo: 'Боезапас', accuracy: 'Точность/отдача',
 };
 export const UPGRADE_MAX = 3;
-export function upgradeCost(planeTier, level) { return Math.round((300 + planeTier * 250) * (level + 1)); }
+// Заявленные эффекты одного уровня улучшения (показываются в ангаре, проверяются тестами).
+export const UPGRADE_EFFECTS = {
+  engine:   { thrust: 0.05 },                  // +5% тяги (≈ +2,5% максимальной скорости)
+  armor:    { hp: 0.08, armor: 0.03 },         // +8% прочности, +3 п.п. брони
+  damage:   { dmg: 0.06 },                     // +6% урона оружия
+  ammo:     { ammo: 0.2 },                     // +20% патронов, +10% ракет
+  accuracy: { spread: 0.15, recoil: 0.15 },    // −15% разброса и «отдачи»
+};
+export function upgradeCost(planeTier, level) { return Math.round((150 + planeTier * 100) * (level + 1)); }
+
+// Масштаб мира (для приборов и сравнения с реальностью): 1 игровая единица ≈ 2,22 м, время в игре
+// идёт примерно в 5 раз быстрее (поэтому скорость в км/ч = ед/с × 1,6, а высота в м = ед × 2,22).
+export const UNIT_M = 2.22;
+export const TIME_SCALE = 5;
+export const ALT_TO_M = UNIT_M;
 
 // Уровень игрока по опыту: уровень n требует 200*n*(n-1) опыта.
 export function levelFromXp(xp) {

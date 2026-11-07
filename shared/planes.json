@@ -1,89 +1,718 @@
 {
-  "weapons": {
-    "mg":      { "name": "Пулемёт 7.7 мм",  "dmg": 2.6, "rof": 15, "speed": 920, "spread": 0.030, "heat": 0.045, "life": 1.05, "recoil": 0.0015, "explosive": false },
-    "hmg":     { "name": "Пулемёт 12.7 мм", "dmg": 3.6, "rof": 11, "speed": 960, "spread": 0.026, "heat": 0.050, "life": 1.15, "recoil": 0.0025, "explosive": false },
-    "cannon":  { "name": "Пушка 20 мм",     "dmg": 10,  "rof": 7,  "speed": 860, "spread": 0.030, "heat": 0.070, "life": 1.05, "recoil": 0.0050, "explosive": true },
-    "hcannon": { "name": "Пушка 37 мм",     "dmg": 30,  "rof": 2.5,"speed": 780, "spread": 0.020, "heat": 0.120, "life": 1.20, "recoil": 0.0150, "explosive": true }
+ "weapons": {
+  "mg": {
+   "name": "Пулемёт 7.7 мм",
+   "dmg": 1.5,
+   "rof": 15,
+   "speed": 920,
+   "spread": 0.03,
+   "heat": 0.045,
+   "life": 1.05,
+   "recoil": 0.0015,
+   "explosive": false
   },
-  "bombs": {
-    "light":  { "name": "Бомба 50 кг",  "dmg": 170, "radius": 85 },
-    "medium": { "name": "Бомба 250 кг", "dmg": 300, "radius": 115 },
-    "heavy":  { "name": "Бомба 500 кг", "dmg": 480, "radius": 155 }
+  "hmg": {
+   "name": "Пулемёт 12.7 мм",
+   "dmg": 3.6,
+   "rof": 11,
+   "speed": 960,
+   "spread": 0.026,
+   "heat": 0.05,
+   "life": 1.15,
+   "recoil": 0.0025,
+   "explosive": false
   },
-  "rockets": {
-    "rkt": { "name": "НУРС", "dmg": 140, "radius": 50, "speed": 560 }
+  "cannon": {
+   "name": "Пушка 20 мм",
+   "dmg": 10,
+   "rof": 7,
+   "speed": 860,
+   "spread": 0.03,
+   "heat": 0.07,
+   "life": 1.05,
+   "recoil": 0.005,
+   "explosive": true
   },
-  "planes": [
-    { "id": "us_f1", "nation": "us", "class": "fighter",  "name": "Hornet P-1",      "tier": 1, "cost": 0,    "level": 1,
-      "hp": 170, "armor": 0.10, "vmax": 400, "vstall": 115, "thrust": 84, "turn": 2.45, "corner": 240, "boost": 1.32, "size": 1.0, "shape": "fighter",
-      "guns": [ { "w": "hmg", "count": 4, "ammo": 340 } ], "bombs": { "type": "light", "count": 1 }, "rockets": null, "gunners": [],
-      "desc": "Быстрый и крепкий истребитель с батареей крупнокалиберных пулемётов." },
-    { "id": "us_a2", "nation": "us", "class": "attacker", "name": "Ironclad A-2",    "tier": 2, "cost": 1500, "level": 2,
-      "hp": 300, "armor": 0.25, "vmax": 365, "vstall": 120, "thrust": 80, "turn": 2.0, "corner": 225, "boost": 1.28, "size": 1.18, "shape": "attacker",
-      "guns": [ { "w": "hmg", "count": 6, "ammo": 380 } ], "bombs": { "type": "medium", "count": 2 }, "rockets": { "type": "rkt", "count": 6 }, "gunners": [],
-      "desc": "Тяжёлый ударный самолёт: шесть пулемётов, ракеты и бомбы." },
-    { "id": "us_b3", "nation": "us", "class": "bomber",   "name": "Skyfortress B-3", "tier": 3, "cost": 4000, "level": 4,
-      "hp": 540, "armor": 0.20, "vmax": 300, "vstall": 105, "thrust": 66, "turn": 1.3, "corner": 200, "boost": 1.22, "size": 1.75, "shape": "bomber",
-      "guns": [ { "w": "hmg", "count": 2, "ammo": 300 } ], "bombs": { "type": "heavy", "count": 6 }, "rockets": null,
-      "gunners": [ { "w": "hmg", "count": 2, "dir": 3.1416, "arc": 1.3, "x": -0.8 }, { "w": "hmg", "count": 2, "dir": 1.5708, "arc": 1.4, "x": 0.1 } ],
-      "desc": "Летающая крепость с бортовыми стрелками и тяжёлыми бомбами." },
-
-    { "id": "su_f1", "nation": "su", "class": "fighter",  "name": "Strizh I-5",      "tier": 1, "cost": 0,    "level": 1,
-      "hp": 160, "armor": 0.08, "vmax": 385, "vstall": 110, "thrust": 86, "turn": 2.6, "corner": 225, "boost": 1.32, "size": 1.0, "shape": "fighter",
-      "guns": [ { "w": "cannon", "count": 1, "ammo": 130 }, { "w": "hmg", "count": 2, "ammo": 300 } ], "bombs": { "type": "light", "count": 2 }, "rockets": null, "gunners": [],
-      "desc": "Манёвренный фронтовой истребитель с мотор-пушкой." },
-    { "id": "su_a2", "nation": "su", "class": "attacker", "name": "Bronya Sh-2",     "tier": 2, "cost": 1500, "level": 2,
-      "hp": 380, "armor": 0.35, "vmax": 335, "vstall": 115, "thrust": 77, "turn": 1.9, "corner": 210, "boost": 1.25, "size": 1.18, "shape": "attacker",
-      "guns": [ { "w": "cannon", "count": 2, "ammo": 160 }, { "w": "mg", "count": 2, "ammo": 500 } ], "bombs": { "type": "light", "count": 4 }, "rockets": { "type": "rkt", "count": 8 },
-      "gunners": [ { "w": "mg", "count": 1, "dir": 3.1416, "arc": 1.2, "x": -0.3 } ],
-      "desc": "Бронированный штурмовик — «летающий танк» с ракетами и стрелком." },
-    { "id": "su_b3", "nation": "su", "class": "bomber",   "name": "Grom Pe-3",       "tier": 3, "cost": 4000, "level": 4,
-      "hp": 400, "armor": 0.15, "vmax": 345, "vstall": 115, "thrust": 74, "turn": 1.55, "corner": 215, "boost": 1.25, "size": 1.55, "shape": "bomber",
-      "guns": [ { "w": "hmg", "count": 2, "ammo": 300 } ], "bombs": { "type": "medium", "count": 5 }, "rockets": null,
-      "gunners": [ { "w": "hmg", "count": 1, "dir": 3.1416, "arc": 1.3, "x": -0.4 } ],
-      "desc": "Скоростной пикирующий бомбардировщик." },
-
-    { "id": "uk_f1", "nation": "uk", "class": "fighter",  "name": "Kestrel Mk I",    "tier": 1, "cost": 0,    "level": 1,
-      "hp": 150, "armor": 0.06, "vmax": 390, "vstall": 105, "thrust": 84, "turn": 2.8, "corner": 220, "boost": 1.32, "size": 1.0, "shape": "fighter",
-      "guns": [ { "w": "mg", "count": 8, "ammo": 620 } ], "bombs": null, "rockets": null, "gunners": [],
-      "desc": "Изящный истребитель с отличным виражом и восемью пулемётами." },
-    { "id": "uk_a2", "nation": "uk", "class": "attacker", "name": "Gale FB.2",       "tier": 2, "cost": 1500, "level": 2,
-      "hp": 270, "armor": 0.15, "vmax": 400, "vstall": 125, "thrust": 90, "turn": 2.0, "corner": 255, "boost": 1.28, "size": 1.12, "shape": "attacker",
-      "guns": [ { "w": "cannon", "count": 4, "ammo": 200 } ], "bombs": { "type": "medium", "count": 2 }, "rockets": { "type": "rkt", "count": 8 }, "gunners": [],
-      "desc": "Быстрый истребитель-бомбардировщик с четырьмя пушками." },
-    { "id": "uk_b3", "nation": "uk", "class": "bomber",   "name": "Albion B.3",      "tier": 3, "cost": 4000, "level": 4,
-      "hp": 560, "armor": 0.15, "vmax": 290, "vstall": 100, "thrust": 64, "turn": 1.2, "corner": 195, "boost": 1.2, "size": 1.8, "shape": "bomber",
-      "guns": [ { "w": "mg", "count": 2, "ammo": 600 } ], "bombs": { "type": "heavy", "count": 8 }, "rockets": null,
-      "gunners": [ { "w": "mg", "count": 4, "dir": 3.1416, "arc": 1.3, "x": -0.85 }, { "w": "mg", "count": 2, "dir": 1.5708, "arc": 1.4, "x": 0.15 } ],
-      "desc": "Тяжёлый четырёхмоторный бомбардировщик с огромной бомбовой нагрузкой." },
-
-    { "id": "de_f1", "nation": "de", "class": "fighter",  "name": "Falke Fw-1",      "tier": 1, "cost": 0,    "level": 1,
-      "hp": 165, "armor": 0.10, "vmax": 410, "vstall": 120, "thrust": 88, "turn": 2.3, "corner": 250, "boost": 1.35, "size": 1.0, "shape": "fighter",
-      "guns": [ { "w": "cannon", "count": 1, "ammo": 140 }, { "w": "mg", "count": 2, "ammo": 500 } ], "bombs": { "type": "light", "count": 1 }, "rockets": null, "gunners": [],
-      "desc": "Скоростной истребитель для тактики «бей и беги»." },
-    { "id": "de_a2", "nation": "de", "class": "attacker", "name": "Sturmvogel Ju-2", "tier": 2, "cost": 1500, "level": 2,
-      "hp": 290, "armor": 0.20, "vmax": 320, "vstall": 100, "thrust": 75, "turn": 2.05, "corner": 205, "boost": 1.25, "size": 1.2, "shape": "attacker",
-      "guns": [ { "w": "hcannon", "count": 2, "ammo": 40 }, { "w": "mg", "count": 2, "ammo": 500 } ], "bombs": { "type": "medium", "count": 3 }, "rockets": null,
-      "gunners": [ { "w": "mg", "count": 2, "dir": 3.1416, "arc": 1.2, "x": -0.3 } ],
-      "desc": "Пикировщик-«охотник за танками» с 37-мм пушками." },
-    { "id": "de_b3", "nation": "de", "class": "bomber",   "name": "Adler He-3",      "tier": 3, "cost": 4000, "level": 4,
-      "hp": 480, "armor": 0.18, "vmax": 310, "vstall": 108, "thrust": 68, "turn": 1.35, "corner": 205, "boost": 1.22, "size": 1.65, "shape": "bomber",
-      "guns": [ { "w": "mg", "count": 2, "ammo": 500 } ], "bombs": { "type": "heavy", "count": 6 }, "rockets": null,
-      "gunners": [ { "w": "mg", "count": 2, "dir": 3.1416, "arc": 1.3, "x": -0.7 }, { "w": "cannon", "count": 1, "dir": 1.5708, "arc": 1.3, "x": 0.1 } ],
-      "desc": "Средний бомбардировщик с пушечной турелью." },
-
-    { "id": "jp_f1", "nation": "jp", "class": "fighter",  "name": "Tsubame A1",      "tier": 1, "cost": 0,    "level": 1,
-      "hp": 125, "armor": 0.0, "vmax": 375, "vstall": 95, "thrust": 83, "turn": 3.1, "corner": 200, "boost": 1.3, "size": 0.95, "shape": "fighter",
-      "guns": [ { "w": "cannon", "count": 2, "ammo": 110 }, { "w": "mg", "count": 2, "ammo": 500 } ], "bombs": { "type": "light", "count": 2 }, "rockets": null, "gunners": [],
-      "desc": "Невероятно вёрткий, но хрупкий палубный истребитель." },
-    { "id": "jp_a2", "nation": "jp", "class": "attacker", "name": "Kaminari K-2",    "tier": 2, "cost": 1500, "level": 2,
-      "hp": 240, "armor": 0.12, "vmax": 375, "vstall": 112, "thrust": 85, "turn": 2.25, "corner": 225, "boost": 1.3, "size": 1.12, "shape": "attacker",
-      "guns": [ { "w": "cannon", "count": 4, "ammo": 180 } ], "bombs": { "type": "light", "count": 2 }, "rockets": { "type": "rkt", "count": 4 }, "gunners": [],
-      "desc": "Тяжёлый истребитель-перехватчик с четырьмя пушками." },
-    { "id": "jp_b3", "nation": "jp", "class": "bomber",   "name": "Kumo G-3",        "tier": 3, "cost": 4000, "level": 4,
-      "hp": 390, "armor": 0.08, "vmax": 325, "vstall": 102, "thrust": 70, "turn": 1.5, "corner": 205, "boost": 1.24, "size": 1.6, "shape": "bomber",
-      "guns": [ { "w": "mg", "count": 1, "ammo": 500 } ], "bombs": { "type": "medium", "count": 6 }, "rockets": null,
-      "gunners": [ { "w": "cannon", "count": 1, "dir": 3.1416, "arc": 1.2, "x": -0.8 }, { "w": "mg", "count": 1, "dir": 1.5708, "arc": 1.3, "x": 0.2 } ],
-      "desc": "Дальний бомбардировщик с хвостовой пушкой." }
-  ]
+  "hcannon": {
+   "name": "Пушка 37 мм",
+   "dmg": 30,
+   "rof": 2.5,
+   "speed": 780,
+   "spread": 0.02,
+   "heat": 0.12,
+   "life": 1.2,
+   "recoil": 0.015,
+   "explosive": true
+  }
+ },
+ "bombs": {
+  "light": {
+   "name": "Бомба 50 кг",
+   "dmg": 170,
+   "radius": 85
+  },
+  "medium": {
+   "name": "Бомба 250 кг",
+   "dmg": 300,
+   "radius": 115
+  },
+  "heavy": {
+   "name": "Бомба 500 кг",
+   "dmg": 480,
+   "radius": 155
+  }
+ },
+ "rockets": {
+  "rkt": {
+   "name": "НУРС",
+   "dmg": 140,
+   "radius": 50,
+   "speed": 560
+  }
+ },
+ "planes": [
+  {
+   "id": "us_f1",
+   "nation": "us",
+   "class": "fighter",
+   "name": "Hornet P-1",
+   "tier": 1,
+   "cost": 0,
+   "level": 1,
+   "hp": 170,
+   "armor": 0.1,
+   "vmax": 425,
+   "vstall": 120,
+   "vne": 503,
+   "gmax": 4.0,
+   "mass": 4.2,
+   "thrust": 41,
+   "turn": 2.45,
+   "boost": 1.18,
+   "size": 1.0,
+   "shape": "fighter",
+   "guns": [
+    {
+     "w": "hmg",
+     "count": 4,
+     "ammo": 340
+    }
+   ],
+   "bombs": {
+    "type": "light",
+    "count": 1
+   },
+   "rockets": null,
+   "gunners": [],
+   "desc": "Быстрый и крепкий истребитель с батареей крупнокалиберных пулемётов."
+  },
+  {
+   "id": "us_a2",
+   "nation": "us",
+   "class": "attacker",
+   "name": "Ironclad A-2",
+   "tier": 2,
+   "cost": 1500,
+   "level": 2,
+   "hp": 320,
+   "armor": 0.25,
+   "vmax": 415,
+   "vstall": 128,
+   "vne": 553,
+   "gmax": 3.8,
+   "mass": 6.6,
+   "thrust": 36,
+   "turn": 2.0,
+   "boost": 1.18,
+   "size": 1.18,
+   "shape": "attacker",
+   "guns": [
+    {
+     "w": "hmg",
+     "count": 6,
+     "ammo": 380
+    }
+   ],
+   "bombs": {
+    "type": "medium",
+    "count": 2
+   },
+   "rockets": {
+    "type": "rkt",
+    "count": 6
+   },
+   "gunners": [],
+   "desc": "Тяжёлый ударный самолёт: шесть пулемётов, ракеты и бомбы."
+  },
+  {
+   "id": "us_b3",
+   "nation": "us",
+   "class": "bomber",
+   "name": "Skyfortress B-3",
+   "tier": 3,
+   "cost": 4000,
+   "level": 4,
+   "hp": 560,
+   "armor": 0.2,
+   "vmax": 289,
+   "vstall": 105,
+   "vne": 306,
+   "gmax": 2.5,
+   "mass": 24.9,
+   "thrust": 23,
+   "turn": 1.1,
+   "boost": 1.12,
+   "size": 1.75,
+   "shape": "bomber",
+   "guns": [
+    {
+     "w": "hmg",
+     "count": 2,
+     "ammo": 300
+    }
+   ],
+   "bombs": {
+    "type": "heavy",
+    "count": 6
+   },
+   "rockets": null,
+   "gunners": [
+    {
+     "w": "hmg",
+     "count": 2,
+     "dir": 3.1416,
+     "arc": 1.3,
+     "x": -0.8
+    },
+    {
+     "w": "hmg",
+     "count": 2,
+     "dir": 1.5708,
+     "arc": 1.4,
+     "x": 0.1
+    }
+   ],
+   "desc": "Летающая крепость с бортовыми стрелками и тяжёлыми бомбами."
+  },
+  {
+   "id": "su_f1",
+   "nation": "su",
+   "class": "fighter",
+   "name": "Strizh I-5",
+   "tier": 1,
+   "cost": 0,
+   "level": 1,
+   "hp": 160,
+   "armor": 0.08,
+   "vmax": 404,
+   "vstall": 112,
+   "vne": 438,
+   "gmax": 4.2,
+   "mass": 2.7,
+   "thrust": 58,
+   "turn": 2.65,
+   "boost": 1.15,
+   "size": 1.0,
+   "shape": "fighter",
+   "guns": [
+    {
+     "w": "cannon",
+     "count": 1,
+     "ammo": 130
+    },
+    {
+     "w": "hmg",
+     "count": 2,
+     "ammo": 300
+    }
+   ],
+   "bombs": {
+    "type": "light",
+    "count": 2
+   },
+   "rockets": null,
+   "gunners": [],
+   "desc": "Лёгкий фронтовой истребитель: лучшая скороподъёмность и разгон на малых высотах."
+  },
+  {
+   "id": "su_a2",
+   "nation": "su",
+   "class": "attacker",
+   "name": "Bronya Sh-2",
+   "tier": 2,
+   "cost": 1500,
+   "level": 2,
+   "hp": 400,
+   "armor": 0.38,
+   "vmax": 265,
+   "vstall": 112,
+   "vne": 375,
+   "gmax": 3.2,
+   "mass": 6.2,
+   "thrust": 34,
+   "turn": 1.8,
+   "boost": 1.12,
+   "size": 1.18,
+   "shape": "attacker",
+   "guns": [
+    {
+     "w": "cannon",
+     "count": 2,
+     "ammo": 160
+    },
+    {
+     "w": "mg",
+     "count": 2,
+     "ammo": 500
+    }
+   ],
+   "bombs": {
+    "type": "light",
+    "count": 4
+   },
+   "rockets": {
+    "type": "rkt",
+    "count": 8
+   },
+   "gunners": [
+    {
+     "w": "mg",
+     "count": 1,
+     "dir": 3.1416,
+     "arc": 1.2,
+     "x": -0.3
+    }
+   ],
+   "desc": "Бронированный штурмовик — «летающий танк» с ракетами и стрелком."
+  },
+  {
+   "id": "su_b3",
+   "nation": "su",
+   "class": "bomber",
+   "name": "Grom Pe-3",
+   "tier": 3,
+   "cost": 4000,
+   "level": 4,
+   "hp": 400,
+   "armor": 0.15,
+   "vmax": 337,
+   "vstall": 115,
+   "vne": 450,
+   "gmax": 3.5,
+   "mass": 7.5,
+   "thrust": 38,
+   "turn": 1.5,
+   "boost": 1.15,
+   "size": 1.55,
+   "shape": "bomber",
+   "guns": [
+    {
+     "w": "hmg",
+     "count": 2,
+     "ammo": 300
+    }
+   ],
+   "bombs": {
+    "type": "medium",
+    "count": 5
+   },
+   "rockets": null,
+   "gunners": [
+    {
+     "w": "hmg",
+     "count": 1,
+     "dir": 3.1416,
+     "arc": 1.3,
+     "x": -0.4
+    }
+   ],
+   "desc": "Скоростной пикирующий бомбардировщик."
+  },
+  {
+   "id": "uk_f1",
+   "nation": "uk",
+   "class": "fighter",
+   "name": "Kestrel Mk I",
+   "tier": 1,
+   "cost": 0,
+   "level": 1,
+   "hp": 150,
+   "armor": 0.06,
+   "vmax": 364,
+   "vstall": 102,
+   "vne": 452,
+   "gmax": 4.2,
+   "mass": 2.7,
+   "thrust": 46,
+   "turn": 2.85,
+   "boost": 1.18,
+   "size": 1.0,
+   "shape": "fighter",
+   "guns": [
+    {
+     "w": "mg",
+     "count": 8,
+     "ammo": 620
+    }
+   ],
+   "bombs": null,
+   "rockets": null,
+   "gunners": [],
+   "desc": "Лёгкий истребитель с отличным виражом и восемью пулемётами винтовочного калибра."
+  },
+  {
+   "id": "uk_a2",
+   "nation": "uk",
+   "class": "attacker",
+   "name": "Gale FB.2",
+   "tier": 2,
+   "cost": 1500,
+   "level": 2,
+   "hp": 250,
+   "armor": 0.15,
+   "vmax": 410,
+   "vstall": 122,
+   "vne": 500,
+   "gmax": 3.8,
+   "mass": 5.2,
+   "thrust": 44,
+   "turn": 1.85,
+   "boost": 1.15,
+   "size": 1.12,
+   "shape": "attacker",
+   "guns": [
+    {
+     "w": "cannon",
+     "count": 4,
+     "ammo": 200
+    }
+   ],
+   "bombs": {
+    "type": "medium",
+    "count": 2
+   },
+   "rockets": {
+    "type": "rkt",
+    "count": 8
+   },
+   "gunners": [],
+   "desc": "Быстрый истребитель-бомбардировщик с четырьмя пушками."
+  },
+  {
+   "id": "uk_b3",
+   "nation": "uk",
+   "class": "bomber",
+   "name": "Albion B.3",
+   "tier": 3,
+   "cost": 4000,
+   "level": 4,
+   "hp": 580,
+   "armor": 0.15,
+   "vmax": 284,
+   "vstall": 102,
+   "vne": 362,
+   "gmax": 2.4,
+   "mass": 29.0,
+   "thrust": 28,
+   "turn": 1.05,
+   "boost": 1.12,
+   "size": 1.8,
+   "shape": "bomber",
+   "guns": [
+    {
+     "w": "mg",
+     "count": 2,
+     "ammo": 600
+    }
+   ],
+   "bombs": {
+    "type": "heavy",
+    "count": 8
+   },
+   "rockets": null,
+   "gunners": [
+    {
+     "w": "mg",
+     "count": 4,
+     "dir": 3.1416,
+     "arc": 1.3,
+     "x": -0.85
+    },
+    {
+     "w": "mg",
+     "count": 2,
+     "dir": 1.5708,
+     "arc": 1.4,
+     "x": 0.15
+    }
+   ],
+   "desc": "Тяжёлый четырёхмоторный бомбардировщик с огромной бомбовой нагрузкой."
+  },
+  {
+   "id": "de_f1",
+   "nation": "de",
+   "class": "fighter",
+   "name": "Falke Fw-1",
+   "tier": 1,
+   "cost": 0,
+   "level": 1,
+   "hp": 175,
+   "armor": 0.12,
+   "vmax": 410,
+   "vstall": 128,
+   "vne": 531,
+   "gmax": 4.3,
+   "mass": 4.4,
+   "thrust": 47,
+   "turn": 2.3,
+   "boost": 1.2,
+   "size": 1.0,
+   "shape": "fighter",
+   "guns": [
+    {
+     "w": "cannon",
+     "count": 2,
+     "ammo": 250
+    },
+    {
+     "w": "hmg",
+     "count": 2,
+     "ammo": 475
+    }
+   ],
+   "bombs": {
+    "type": "light",
+    "count": 1
+   },
+   "rockets": null,
+   "gunners": [],
+   "desc": "Скоростной истребитель: сильное вооружение, лучший в пикировании, но тяжёл в вираже."
+  },
+  {
+   "id": "de_a2",
+   "nation": "de",
+   "class": "attacker",
+   "name": "Sturmvogel Ju-2",
+   "tier": 2,
+   "cost": 1500,
+   "level": 2,
+   "hp": 300,
+   "armor": 0.2,
+   "vmax": 230,
+   "vstall": 108,
+   "vne": 375,
+   "gmax": 3.5,
+   "mass": 5.7,
+   "thrust": 31,
+   "turn": 1.9,
+   "boost": 1.12,
+   "size": 1.2,
+   "shape": "attacker",
+   "guns": [
+    {
+     "w": "hcannon",
+     "count": 2,
+     "ammo": 40
+    },
+    {
+     "w": "mg",
+     "count": 2,
+     "ammo": 500
+    }
+   ],
+   "bombs": {
+    "type": "medium",
+    "count": 3
+   },
+   "rockets": null,
+   "gunners": [
+    {
+     "w": "mg",
+     "count": 2,
+     "dir": 3.1416,
+     "arc": 1.2,
+     "x": -0.3
+    }
+   ],
+   "desc": "Пикировщик-«охотник за танками» с 37-мм пушками."
+  },
+  {
+   "id": "de_b3",
+   "nation": "de",
+   "class": "bomber",
+   "name": "Adler He-3",
+   "tier": 3,
+   "cost": 4000,
+   "level": 4,
+   "hp": 480,
+   "armor": 0.18,
+   "vmax": 272,
+   "vstall": 105,
+   "vne": 375,
+   "gmax": 2.5,
+   "mass": 14.0,
+   "thrust": 23,
+   "turn": 1.15,
+   "boost": 1.12,
+   "size": 1.65,
+   "shape": "bomber",
+   "guns": [
+    {
+     "w": "mg",
+     "count": 2,
+     "ammo": 500
+    }
+   ],
+   "bombs": {
+    "type": "heavy",
+    "count": 6
+   },
+   "rockets": null,
+   "gunners": [
+    {
+     "w": "mg",
+     "count": 2,
+     "dir": 3.1416,
+     "arc": 1.3,
+     "x": -0.7
+    },
+    {
+     "w": "cannon",
+     "count": 1,
+     "dir": 1.5708,
+     "arc": 1.3,
+     "x": 0.1
+    }
+   ],
+   "desc": "Средний бомбардировщик с пушечной турелью."
+  },
+  {
+   "id": "jp_f1",
+   "nation": "jp",
+   "class": "fighter",
+   "name": "Tsubame A1",
+   "tier": 1,
+   "cost": 0,
+   "level": 1,
+   "hp": 125,
+   "armor": 0.0,
+   "vmax": 333,
+   "vstall": 95,
+   "vne": 419,
+   "gmax": 3.8,
+   "mass": 2.4,
+   "thrust": 47,
+   "turn": 3.1,
+   "boost": 1.15,
+   "size": 0.95,
+   "shape": "fighter",
+   "guns": [
+    {
+     "w": "cannon",
+     "count": 2,
+     "ammo": 110
+    },
+    {
+     "w": "mg",
+     "count": 2,
+     "ammo": 500
+    }
+   ],
+   "bombs": {
+    "type": "light",
+    "count": 2
+   },
+   "rockets": null,
+   "gunners": [],
+   "desc": "Самый вёрткий истребитель, но медленный, хрупкий и ограниченный в пикировании."
+  },
+  {
+   "id": "jp_a2",
+   "nation": "jp",
+   "class": "attacker",
+   "name": "Kaminari K-2",
+   "tier": 2,
+   "cost": 1500,
+   "level": 2,
+   "hp": 230,
+   "armor": 0.12,
+   "vmax": 372,
+   "vstall": 116,
+   "vne": 500,
+   "gmax": 4.0,
+   "mass": 3.4,
+   "thrust": 63,
+   "turn": 2.25,
+   "boost": 1.15,
+   "size": 1.12,
+   "shape": "attacker",
+   "guns": [
+    {
+     "w": "cannon",
+     "count": 4,
+     "ammo": 180
+    }
+   ],
+   "bombs": {
+    "type": "light",
+    "count": 2
+   },
+   "rockets": {
+    "type": "rkt",
+    "count": 4
+   },
+   "gunners": [],
+   "desc": "Тяжёлый истребитель-перехватчик с четырьмя пушками."
+  },
+  {
+   "id": "jp_b3",
+   "nation": "jp",
+   "class": "bomber",
+   "name": "Kumo G-3",
+   "tier": 3,
+   "cost": 4000,
+   "level": 4,
+   "hp": 390,
+   "armor": 0.08,
+   "vmax": 273,
+   "vstall": 104,
+   "vne": 350,
+   "gmax": 2.8,
+   "mass": 12.5,
+   "thrust": 36,
+   "turn": 1.4,
+   "boost": 1.12,
+   "size": 1.6,
+   "shape": "bomber",
+   "guns": [
+    {
+     "w": "mg",
+     "count": 1,
+     "ammo": 500
+    }
+   ],
+   "bombs": {
+    "type": "medium",
+    "count": 6
+   },
+   "rockets": null,
+   "gunners": [
+    {
+     "w": "cannon",
+     "count": 1,
+     "dir": 3.1416,
+     "arc": 1.2,
+     "x": -0.8
+    },
+    {
+     "w": "mg",
+     "count": 1,
+     "dir": 1.5708,
+     "arc": 1.3,
+     "x": 0.2
+    }
+   ],
+   "desc": "Дальний бомбардировщик с хвостовой пушкой."
+  }
+ ]
 }
