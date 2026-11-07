@@ -5,7 +5,13 @@ import { LIMITS } from '../shared/protocol.js';
 import { clamp } from '../shared/constants.js';
 
 export class RateLimiter {
-  constructor() { this.win = 0; this.count = 0; this.chat = []; this.strikes = 0; this.inputs = 0; this.inputWin = 0; }
+  constructor() { this.win = 0; this.count = 0; this.chat = []; this.strikes = 0; this.inputs = 0; this.inputWin = 0; this.hellos = []; }
+  // представление (hello) — не чаще 5 раз в минуту на соединение
+  allowHello(now) {
+    this.hellos = this.hellos.filter(t => now - t < 60000);
+    if (this.hellos.length >= 5) return false;
+    this.hellos.push(now); return true;
+  }
   // false — сообщение отброшено
   allow(now) {
     if (now - this.win > 1000) { this.win = now; this.count = 0; }
@@ -48,12 +54,19 @@ export function sanitizeInput(raw) {
   return inp;
 }
 
+// Управляющие символы, смена направления текста (U+202A–202E, U+2066–2069), невидимые символы.
+const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff\ufff9-\ufffb]/g;
+// Обрезка по кодовым точкам (эмодзи не разрезаются пополам).
+function cut(s, n) { return Array.from(s).slice(0, n).join(''); }
+
 export function sanitizeName(n) {
-  n = String(n || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, LIMITS.NAME_LEN);
+  n = typeof n === 'string' ? n : '';
+  n = cut(n.replace(INVISIBLE, '').replace(/[<>&"'`]/g, '').replace(/\s+/g, ' ').trim(), LIMITS.NAME_LEN).trim();
   return n || 'Пилот' + Math.floor(Math.random() * 900 + 100);
 }
 export function sanitizeText(t) {
-  return String(t || '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, LIMITS.CHAT_LEN);
+  if (typeof t !== 'string') return '';
+  return cut(t.replace(INVISIBLE, '').trim(), LIMITS.CHAT_LEN);
 }
 
 // Проверка правдоподобности состояния после шага физики (защита от багов/эксплойтов).

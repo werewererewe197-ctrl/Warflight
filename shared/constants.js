@@ -71,6 +71,7 @@ export const DEFAULT_SETTINGS = {
   botDifficulty: 1,      // 0 лёгкие, 1 средние, 2 асы
   respawnMode: 'timer',  // 'timer' — возрождение по таймеру, 'airfield' — только пешком через аэродром
   respawnTime: 5,
+  friendlyFire: false,   // огонь по своим (в командных режимах)
 };
 
 export const BOT_DIFFICULTY = ['Новички', 'Ветераны', 'Асы'];

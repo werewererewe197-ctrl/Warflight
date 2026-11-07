@@ -188,16 +188,32 @@ describe('лобби', () => {
     h.close(); a.close();
   });
 
-  it('пустое лобби удаляется, вкладка закрыта — игрок выходит', async () => {
+  it('закрытая вкладка — игрок выходит сразу, пустое лобби удаляется', async () => {
     const h = await connect(srv, 'Host');
     const room = await createRoom(h, {});
-    h.terminate();
+    h.close();                                   // штатное закрытие
     await wait(300);
     const o = await connect(srv, 'Other');
     o.send({ t: 'list' });
     const list = (await o.next('rooms')).list;
     expect(list.find(r => r.code === room.code)).toBeUndefined();
     o.close();
+  });
+
+  it('обрыв связи без переподключения — лобби удаляется после окна ожидания', async () => {
+    const gs = await startServer({ WF_RECONNECT_GRACE_MS: '800' });
+    const h = await connect(gs, 'Host');
+    const room = await createRoom(gs === gs ? h : h, {});
+    h.terminate();                               // обрыв (код 1006)
+    await wait(300);
+    const o = await connect(gs, 'Other');
+    o.send({ t: 'list' });
+    expect((await o.next('rooms')).list.find(r => r.code === room.code)).toBeTruthy();   // ещё ждём
+    await wait(900);
+    o.send({ t: 'list' });
+    expect((await o.next('rooms')).list.find(r => r.code === room.code)).toBeUndefined();
+    o.close();
+    await gs.stop();
   });
 
   it('после матча — итоги, награда один раз, возврат в то же лобби и повторный старт', async () => {
@@ -344,9 +360,9 @@ describe('античит', () => {
     const c = await connect(srv, 'Spawner');
     for (let i = 0; i < 50; i++) c.send({ t: 'create', settings: {} });
     await wait(500);
-    c.send({ t: 'list' });
-    const n = (await c.next('rooms')).list.length;
-    expect(n).toBeLessThan(10);
+    const codes = new Set(c.log.filter(m => m.t === 'room').map(m => m.room.code));
+    expect(codes.size).toBeLessThanOrEqual(1);
+    expect(c.log.some(m => m.t === 'err' && /часто/.test(m.msg))).toBe(true);
     c.close();
   });
 });

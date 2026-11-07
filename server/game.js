@@ -12,12 +12,15 @@ import { botThink, botName } from './bots.js';
 import { MODE_RULES } from './modes.js';
 
 const PILOT_HP = 40;
+const MAX_REWIND = 15;            // компенсация лага: не больше 15 тиков (500 мс) назад
+const HIST = 32;                  // глубина истории позиций самолётов (тиков)
+const STARVE_TICKS = 9;           // ввод не приходит 300 мс → нейтральный ввод (вкладка в фоне, обрыв)
 const PILOT_GUN = { dmg: 4, rof: 6, speed: 700, spread: 0.05, life: 0.8 };
 
 let eidSeq = 1;
 
 export class Game {
-  constructor(room, data, onEnd) {
+  constructor(room, data, onEnd, opts = {}) {
     this.room = room;
     this.data = data;
     this.settings = { ...room.settings };
@@ -48,7 +51,22 @@ export class Game {
       for (let i = 0; i < n; i++) this.addBot(i);
     }
     this.rules.afterSpawn && this.rules.afterSpawn(this);
-    this.timer = setInterval(() => this.safeTick(), 1000 / TICK_RATE);
+    if (!opts.manual) this.startLoop();
+  }
+
+  // Точный игровой цикл: тики по накопленному времени, без дрейфа частоты (setInterval давал 30,19 Гц).
+  startLoop() {
+    const period = 1000 / TICK_RATE;
+    let next = performance.now() + period;
+    const loop = () => {
+      if (this.ended) return;
+      const now = performance.now();
+      let n = 0;
+      while (now >= next && n < 4) { this.safeTick(); next += period; n++; }
+      if (now - next > 250) next = now + period;        // сильно отстали (пауза процесса) — не догоняем рывком
+      this.timer = setTimeout(loop, Math.max(0, next - performance.now()));
+    };
+    this.timer = setTimeout(loop, period);
   }
 
   // ---------- участники ----------
@@ -57,6 +75,7 @@ export class Game {
       id, name, isBot, client: null, team: -1, color: '#fff', planeId: null, def: null, st: null,
       state: 'dead', planeEid: 0, pilot: null, pilotHp: PILOT_HP, pilotGunT: 0,
       inputQ: [], lastInput: { p: 0, t: 0 }, lastSeq: 0, respawnT: 1, pilotRespawnT: 0, lives: 99, out: false,
+      viewTick: 0, starve: 0, qOver: 0,
       stats: { kills: 0, deaths: 0, damage: 0, ground: 0, score: 0, pilotKills: 0 },
       bot: null, lastHitBy: null, lastHitT: -99, spawnedOnce: false,
     };
@@ -70,6 +89,7 @@ export class Game {
   }
 
   addHuman(pl, initial = false) {
+    if (!initial) this.freeSlotFor(pl);
     const u = this.makeUser(pl.id, pl.name, false);
     u.client = pl;
     u.team = this.teams ? (pl.team === 0 || pl.team === 1 ? pl.team : this.pickTeam()) : -1;
@@ -80,6 +100,30 @@ export class Game {
     u.respawnT = initial ? 0.5 : 1.5;
     if (!initial) this.broadcastRoster();
     return u;
+  }
+
+  // Вход в идущий матч: если участников уже максимум — бот уступает место (из команды входящего).
+  freeSlotFor(pl) {
+    if (this.users.size < this.settings.maxPlayers) return;
+    const bots = [...this.users.values()].filter(u => u.isBot);
+    if (!bots.length) return;
+    const team = this.teams ? (pl.team === 0 || pl.team === 1 ? pl.team : this.pickTeam()) : -1;
+    const bot = bots.find(b => b.team === team && b.state !== 'plane') || bots.find(b => b.team === team) || bots[0];
+    this.removeUser(bot);
+    this.events.push(['msg', `${bot.name} уступает место`]);
+  }
+
+  // Переподключение: тот же участник, сбрасываем нумерацию ввода (клиент начинает с 1).
+  resumeHuman(client) {
+    const u = this.users.get(client.id);
+    if (!u) return null;
+    u.client = client; u.lastSeq = 0; u.inputQ.length = 0; u.starve = 0;
+    return u;
+  }
+
+  renameUser(id, name) {
+    const u = this.users.get(id);
+    if (u && u.name !== name) { u.name = name; this.broadcastRoster(); }
   }
 
   addBot(i) {
@@ -107,8 +151,9 @@ export class Game {
   setPlane(u, planeId) {
     const allowed = this.allowedPlanes();
     let def = allowed.find(p => p.id === planeId);
-    if (!u.isBot && def && u.client && u.client.profile && !u.client.profile.unlocked.includes(def.id)) def = null;
-    if (!def) def = allowed.find(p => !u.client || !u.client.profile || u.client.profile.unlocked.includes(p.id)) || allowed[0];
+    const owns = p => u.isBot || (u.client && u.client.profile && u.client.profile.unlocked.includes(p.id));
+    if (def && !owns(def)) def = null;
+    if (!def) def = allowed.find(owns) || allowed.find(p => p.cost === 0) || this.data.planes.find(p => p.cost === 0);
     u.planeId = def.id; u.def = def;
     const ups = (!u.isBot && u.client && u.client.profile && u.client.profile.upgrades[def.id]) || (u.isBot ? botUpgrades(this.settings.botDifficulty) : {});
     u.st = buildStats(def, ups, this.data);
@@ -117,10 +162,26 @@ export class Game {
   removeHuman(id) {
     const u = this.users.get(id);
     if (!u) return;
-    if (u.planeEid) { const pl = this.planes.get(u.planeEid); if (pl) { pl.owner = null; pl.p.dead = true; } }
-    this.users.delete(id);
-    this.broadcastRoster();
+    // вышел из матча под огнём — фраг тому, кто попал последним
+    if (u.state === 'plane') this.creditLoss(u, this.planes.get(u.planeEid), 'crash');
+    this.removeUser(u);
     this.rules.checkEnd && this.checkEnd();
+  }
+
+  removeUser(u) {
+    if (u.planeEid) { const pl = this.planes.get(u.planeEid); if (pl) { pl.owner = null; pl.abandonedBy = null; pl.p.dead = true; } }
+    this.users.delete(u.id);
+    this.broadcastRoster();
+  }
+
+  // Потеря самолёта без прямого сбития (катапульта, выход, падение): фраг недавно попавшему врагу и смерть.
+  creditLoss(u, pl, how) {
+    if (!pl || pl.killedCredited || pl.p.ground) return;
+    pl.killedCredited = true;
+    const killer = (u.lastHitBy && this.time - u.lastHitT < 10 && this.users.has(u.lastHitBy.id) && this.hostile(u.lastHitBy, u)) ? u.lastHitBy : null;
+    this.events.push(['kill', killer ? killer.id : '', u.id, how]);
+    u.stats.deaths++;
+    if (killer) { killer.stats.kills++; killer.stats.score += 2; this.rules.onKill(this, killer, u, false); }
   }
 
   roster() {
@@ -142,6 +203,7 @@ export class Game {
     const u = this.users.get(id);
     if (!u || u.isBot) return;
     if (inp.s <= u.lastSeq) return;
+    if (u.inputQ.length && inp.s <= u.inputQ[u.inputQ.length - 1].s) return;
     u.inputQ.push(inp);
     while (u.inputQ.length > LIMITS.INPUT_QUEUE) {
       // клиент шлёт ввод быстрее тиков сервера — отбрасываем лишнее (защита от спидхака)
@@ -152,8 +214,14 @@ export class Game {
     }
   }
 
+  // Может ли оружие участника a ранить b (с учётом настройки «огонь по своим»).
+  canDamage(a, b) {
+    if (!a || !b || a === b || a.id === b.id) return false;
+    return this.hostile(a, b) || !!this.settings.friendlyFire;
+  }
+
   bulletHostile(b, u) {
-    if (b.o) return this.hostile(b.o, u);
+    if (b.o) return this.canDamage(b.o, u);
     return b.team === -2 || (b.team >= 0 && u.team >= 0 && u.team !== b.team);
   }
 
@@ -230,6 +298,7 @@ export class Game {
     this.time += DT;
     for (const u of this.users.values()) this.updateUser(u);
     for (const pl of this.planes.values()) this.updatePlane(pl);
+    for (const pl of this.planes.values()) this.recordHistory(pl);
     this.collidePlanes();
     this.updateBullets();
     this.updateProjectiles();
@@ -241,9 +310,24 @@ export class Game {
 
   nextInput(u) {
     if (u.isBot) return botThink(this, u, DT);
-    let inp = u.inputQ.shift();
-    if (inp) { u.lastSeq = inp.s; u.lastInput = { ...inp, b: 0, r: 0, fl: 0, e: 0, j: 0, k: 0 }; return inp; }
-    return u.lastInput; // ввод не пришёл — повторяем последний (без однократных действий)
+    // Буфер ввода: если он долго длиннее 3 (клиент спешит или пачка после лага) — подрезаем, иначе растёт задержка.
+    if (u.inputQ.length > 3) { if (++u.qOver > 30) { this.dropInput(u); u.qOver = 0; } } else u.qOver = 0;
+    const inp = u.inputQ.shift();
+    if (inp) {
+      u.lastSeq = inp.s; u.starve = 0;
+      if (typeof inp.rt === 'number') u.viewTick = clamp(Math.round(inp.rt), this.tickN - MAX_REWIND, this.tickN);
+      u.lastInput = { ...inp, b: 0, r: 0, fl: 0, e: 0, j: 0, k: 0 };
+      return inp;
+    }
+    // ввод не пришёл — повторяем последний (без однократных действий); если долго нет — нейтральный ввод
+    if (++u.starve > STARVE_TICKS) return { p: 0, t: 0, ta: u.lastInput.ta, mx: 0, aim: u.lastInput.aim };
+    return u.lastInput;
+  }
+
+  dropInput(u) {
+    const d = u.inputQ.shift();
+    const n = u.inputQ[0];
+    if (d && n) for (const k of ['b', 'r', 'fl', 'e', 'j', 'k']) n[k] |= d[k];
   }
 
   updateUser(u) {
@@ -264,6 +348,8 @@ export class Game {
 
   eject(u, pl) {
     const p = pl.p;
+    // катапультирование в воздухе = потеря самолёта; под огнём — фраг атакующему
+    if (!p.dead) this.creditLoss(u, pl, 'eject');
     const c = createPilot(p.x, p.y + 10, p.vx * 0.5, p.vy * 0.5 + 110);
     if (p.ground) { c.vx = 0; c.vy = 0; c.ground = true; c.y = this.terrain.ground(p.x) + 6; }
     u.pilot = c; u.pilotHp = PILOT_HP; u.state = 'pilot'; u.planeEid = 0;
@@ -392,6 +478,21 @@ export class Game {
     if (dmg) this.damagePlane(pl, dmg * DT, 'hull', null, 'zone', true);
   }
 
+  recordHistory(pl) {
+    const h = pl.hist || (pl.hist = new Array(HIST));
+    const e = h[this.tickN % HIST] || (h[this.tickN % HIST] = {});
+    e.k = this.tickN; e.x = pl.p.x; e.y = pl.p.y; e.a = pl.p.a;
+  }
+
+  // Поза самолёта N тиков назад (для компенсации лага); если истории нет — текущая.
+  poseAt(pl, rewind) {
+    if (rewind > 0 && pl.hist) {
+      const e = pl.hist[(this.tickN - rewind) % HIST];
+      if (e && e.k === this.tickN - rewind) return e;
+    }
+    return pl.p;
+  }
+
   repair(pl) {
     const pc = pl.pc, st = pl.st, p = pl.p;
     pc.repairing = true;
@@ -431,13 +532,15 @@ export class Game {
       const t = bd / w.speed;
       const tx = best.p.x + (best.p.vx - p.vx) * t, ty = best.p.y + (best.p.vy - p.vy) * t;
       const a = Math.atan2(ty - gy, tx - gx) + (Math.random() - 0.5) * w.spread * 3;
-      this.addBullet(u, pl, gx, gy, p.vx + Math.cos(a) * w.speed, p.vy + Math.sin(a) * w.speed, w.dmg * gn.count * 0.8, w.life * 0.7, w.explosive, gn.w);
+      this.addBullet(u, pl, gx, gy, p.vx + Math.cos(a) * w.speed, p.vy + Math.sin(a) * w.speed, w.dmg * gn.count * 0.8, w.life * 0.7, w.explosive, gn.w, true);
     });
   }
 
-  addBullet(u, pl, x, y, vx, vy, dmg, life, explosive, w) {
-    this.bullets.push({ o: u, eid: pl ? pl.eid : 0, x, y, vx, vy, dmg, life, explosive, w });
-    this.events.push(['shot', pl ? pl.eid : 'c' + u.id, Math.round(x), Math.round(y), Math.round(vx), Math.round(vy), w, +life.toFixed(2)]);
+  addBullet(u, pl, x, y, vx, vy, dmg, life, explosive, w, gunner = false) {
+    // компенсация лага: пуля игрока сверяется с позициями целей в тот тик, который он видел на экране
+    const rewind = u && !u.isBot && u.viewTick ? clamp(this.tickN - u.viewTick, 0, MAX_REWIND) : 0;
+    this.bullets.push({ o: u, eid: pl ? pl.eid : 0, x, y, vx, vy, dmg, life, explosive, w, rewind: gunner ? 0 : rewind });
+    this.events.push(['shot', pl ? pl.eid : 'c' + u.id, Math.round(x), Math.round(y), Math.round(vx), Math.round(vy), w, +life.toFixed(2), gunner ? 1 : 0]);
   }
 
   addProj(type, u, x, y, vx, vy, opt) {
@@ -447,8 +550,8 @@ export class Game {
   }
 
   // ---------- попадания ----------
-  planeHit(pl, x0, y0, dx, dy, pad = 0) {
-    const p = pl.p, s = pl.st.size;
+  planeHit(pl, x0, y0, dx, dy, pad = 0, rewind = 0) {
+    const p = this.poseAt(pl, rewind), s = pl.st.size;
     const ca = Math.cos(p.a), sa = Math.sin(p.a);
     const r = 10 * s + pad;
     let best = -1;
@@ -460,8 +563,8 @@ export class Game {
     return best;
   }
 
-  hitPart(pl, hx, hy) {
-    const p = pl.p, s = pl.st.size;
+  hitPart(pl, hx, hy, rewind = 0) {
+    const p = this.poseAt(pl, rewind), s = pl.st.size;
     const u = ((hx - p.x) * Math.cos(p.a) + (hy - p.y) * Math.sin(p.a)) / s;
     if (u > 8) return 'engine';
     if (u < -10) return 'tail';
@@ -569,12 +672,12 @@ export class Game {
         if (pl.eid === b.eid) continue;
         if (pl.owner ? !this.bulletHostile(b, pl.owner) : false) continue;
         if (!pl.owner && pl.abandonedBy === b.o) continue;
-        const t = this.planeHit(pl, b.x, b.y, dx, dy);
+        const t = this.planeHit(pl, b.x, b.y, dx, dy, 0, b.rewind);
         if (t >= 0 && t < bestT) { bestT = t; bestPl = pl; }
       }
       if (bestPl) {
         const hx = b.x + dx * bestT, hy = b.y + dy * bestT;
-        const part = this.hitPart(bestPl, hx, hy);
+        const part = this.hitPart(bestPl, hx, hy, b.rewind);
         this.damagePlane(bestPl, b.dmg, part, b.o, b.w);
         this.events.push(['hit', Math.round(hx), Math.round(hy), bestPl.eid, b.explosive ? 1 : 0, b.o ? b.o.id : '']);
         hit = true;
@@ -625,7 +728,7 @@ export class Game {
       // контакт с самолётами (ракеты и снаряды)
       if (pr.type !== 'bomb' || true) {
         for (const pl of this.planes.values()) {
-          if (pl.owner === pr.o || (pl.owner && !this.hostile(pr.o, pl.owner) && pr.o)) continue;
+          if (pl.owner === pr.o || (pl.owner && pr.o && !this.canDamage(pr.o, pl.owner))) continue;
           if (!pr.o && pl.owner && pl.owner.team === pr.team) continue;
           if (this.planeHit(pl, pr.x, pr.y, dx, dy, 2) >= 0) { boom = true; this.damagePlane(pl, pr.dmg * 0.6, 'fuel', pr.o, 'boom'); break; }
         }
@@ -651,12 +754,12 @@ export class Game {
     this.ground.explosion(x, y, r, dmg, owner, team);
     for (const u of this.users.values()) {
       if (u.state !== 'pilot') continue;
-      if (owner ? !this.hostile(owner, u) && owner !== u : u.team === team) continue;
+      if (owner ? !this.canDamage(owner, u) && owner !== u : u.team === team) continue;
       const d = Math.hypot(u.pilot.x - x, u.pilot.y + 8 - y);
       if (d < r * 1.1) { u.pilotHp -= dmg * (1 - d / (r * 1.1)) + 20; if (u.pilotHp <= 0) this.killPilot(u, owner && owner !== u ? owner : null, 'pilot'); }
     }
     for (const pl of this.planes.values()) {
-      if (pl.owner && owner && !this.hostile(owner, pl.owner)) continue;
+      if (pl.owner && owner && !this.canDamage(owner, pl.owner)) continue;
       if (!owner && pl.owner && pl.owner.team === team) continue;
       const d = Math.hypot(pl.p.x - x, pl.p.y - y);
       if (d < r * 0.7) this.damagePlane(pl, dmg * 0.5 * (1 - d / (r * 0.7)), 'hull', owner, 'boom');
@@ -687,7 +790,7 @@ export class Game {
   finish(res) {
     if (this.ended) return;
     this.ended = true;
-    clearInterval(this.timer);
+    clearTimeout(this.timer);
     const results = [...this.users.values()].map(u => ({
       id: u.id, name: u.name, team: u.team, bot: u.isBot, planeId: u.planeId, color: u.color,
       kills: u.stats.kills, deaths: u.stats.deaths, damage: Math.round(u.stats.damage), ground: u.stats.ground,
@@ -697,7 +800,7 @@ export class Game {
     this.onEnd({ results, ...res, mode: this.mode, teamScore: this.teamScore });
   }
 
-  stop() { this.ended = true; clearInterval(this.timer); }
+  stop() { this.ended = true; clearTimeout(this.timer); }
 
   // ---------- снапшоты ----------
   sendSnapshots() {

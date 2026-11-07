@@ -2,7 +2,7 @@
 import { GRAVITY, clamp, wrapAngle } from '../shared/constants.js';
 
 const TYPES = {
-  hq:        { hp: 1500, w: 100, h: 45, solid: true, respawn: 0 },
+  hq:        { hp: 4000, w: 100, h: 45, solid: true, respawn: 0 },
   hangar:    { hp: 320, w: 80, h: 40, solid: true, respawn: 60 },
   building:  { hp: 180, w: 60, h: 80, solid: true, respawn: 75 },
   aa:        { hp: 130, w: 32, h: 22, respawn: 50 },
@@ -18,6 +18,7 @@ export class GroundForces {
     this.objs = [];
     this.seq = 1;
     this.tankTimer = [8, 8];
+    this.ready = false;
     const mode = game.mode;
     for (const o of game.map.objects) {
       if (o.type === 'hq' && mode !== 'base') continue;
@@ -27,6 +28,7 @@ export class GroundForces {
       if (mode === 'dm' && o.type === 'aa') team = -1;      // в DM зенитки нейтральны (мишени)
       this.add(o.type, team, o.x);
     }
+    this.ready = true;
   }
 
   add(type, team, x) {
@@ -40,12 +42,13 @@ export class GroundForces {
     };
     if (type === 'artillery' && team === 1) o.dir = Math.PI - 0.7;
     this.objs.push(o);
+    // объект, появившийся во время матча (волна танков), объявляем клиентам
+    if (this.ready) this.g.events.push(['gadd', this.info(o)]);
     return o;
   }
 
-  staticInfo() {
-    return this.objs.map(o => ({ gid: o.gid, type: o.type, team: o.team, x: o.x, y: o.y, w: o.w, h: o.h, maxHp: o.maxHp }));
-  }
+  info(o) { return { gid: o.gid, type: o.type, team: o.team, x: o.x, y: o.y, w: o.w, h: o.h, maxHp: o.maxHp }; }
+  staticInfo() { return this.objs.map(o => this.info(o)); }
 
   snapshot() {
     const out = [];
@@ -58,7 +61,6 @@ export class GroundForces {
     if (o.team === -2) return true;
     return o.team >= 0 && u.team >= 0 && o.team !== u.team;
   }
-  hostileObj(o, team) { return o.team !== team && o.team !== -1 || (o.team === -1 && false); }
 
   hitTest(x, y, dx, dy, owner, team) {
     const t = owner ? owner.team : team;
@@ -82,15 +84,25 @@ export class GroundForces {
     return null;
   }
 
+  // Даёт ли уничтожение объекта очки: только вражеские объекты (нейтральные здания и мишени — нет,
+  // иначе их можно бесконечно фармить: они возрождаются).
+  rewarding(o, attacker) {
+    if (!attacker) return false;
+    if (o.team === -1) return false;
+    if (o.team === -2) return true;
+    return attacker.team < 0 || o.team !== attacker.team;
+  }
+
   damage(o, dmg, attacker) {
     if (o.hp <= 0) return;
     o.hp -= dmg;
-    if (attacker) attacker.stats.damage += Math.min(dmg, o.hp + dmg) * 0.5;
+    const reward = this.rewarding(o, attacker);
+    if (reward) attacker.stats.damage += Math.min(dmg, o.hp + dmg) * 0.5;
     if (o.hp <= 0) {
       o.hp = 0; o.deadT = 0;
       this.g.events.push(['boom', Math.round(o.x), Math.round(o.y + o.h * 0.4), o.type === 'hq' ? 140 : 60]);
       this.g.events.push(['gkill', o.gid, attacker ? attacker.id : '']);
-      if (attacker && o.team !== attacker.team && !(o.team === -1 && this.g.teams && false)) {
+      if (reward) {
         attacker.stats.ground++;
         attacker.stats.score += o.type === 'hq' ? 10 : 1;
       }
