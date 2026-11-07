@@ -25,6 +25,15 @@ const server = http.createServer((req, res) => {
   try { url = decodeURIComponent((req.url || '/').split('?')[0]); } catch { res.writeHead(400); res.end(); return; }
   if (url === '/' || url === '/index.html') url = '/client/index.html';
   if (url === '/health') { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('ok'); return; }
+  if (url === '/metrics' && process.env.WF_METRICS === '1') {
+    const mem = process.memoryUsage(), cpu = process.cpuUsage();
+    const body = {
+      uptime: process.uptime(), rssMB: mem.rss / 1048576, heapMB: mem.heapUsed / 1048576, cpuUserS: cpu.user / 1e6, cpuSysS: cpu.system / 1e6,
+      clients: wss.clients.size, rooms: rooms.rooms.size, bytesOut: stats.bytesOut, msgsOut: stats.msgsOut, bytesIn: stats.bytesIn,
+      games: [...rooms.rooms.values()].filter(r => r.game).map(r => ({ code: r.code, humans: r.players.size, ...r.game.tickStats() })),
+    };
+    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); return;
+  }
   if (!url.startsWith('/client/') && !url.startsWith('/shared/')) { res.writeHead(404); res.end('not found'); return; }
   const file = path.resolve(ROOT, '.' + url);
   if (!file.startsWith(ROOT + path.sep)) { res.writeHead(403); res.end(); return; }
@@ -36,6 +45,7 @@ const server = http.createServer((req, res) => {
 });
 
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 16 * 1024 });
+const stats = { bytesOut: 0, msgsOut: 0, bytesIn: 0 };
 let idSeq = 1;
 
 class Client {
@@ -49,8 +59,8 @@ class Client {
     this.limiter = new RateLimiter();
   }
   get level() { return this.profile ? levelFromXp(this.profile.xp) : 1; }
-  send(m) { if (this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); }
-  sendRaw(s) { if (this.ws.readyState === 1) this.ws.send(s); }
+  send(m) { this.sendRaw(JSON.stringify(m)); }
+  sendRaw(s) { if (this.ws.readyState === 1) { stats.bytesOut += Buffer.byteLength(s); stats.msgsOut++; this.ws.send(s); } }
   error(msg) { this.send({ t: 'err', msg }); }
 }
 
@@ -58,6 +68,7 @@ wss.on('connection', (ws, req) => {
   const c = new Client(ws, req.socket.remoteAddress);
   ws.on('message', raw => {
     const now = Date.now();
+    stats.bytesIn += raw.length;
     if (!c.limiter.allow(now)) { if (c.limiter.abusive) ws.close(4000, 'flood'); return; }
     let m;
     try { m = JSON.parse(raw); } catch { return; }

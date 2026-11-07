@@ -205,7 +205,23 @@ export class Game {
 
   // ---------- тик ----------
   safeTick() {
+    const t0 = performance.now();
     try { this.tick(); } catch (e) { console.error('Ошибка симуляции:', e); }
+    const ms = performance.now() - t0;
+    const m = this.metrics || (this.metrics = { samples: new Float64Array(9000), n: 0, max: 0, startWall: Date.now(), startTick: this.tickN });
+    m.samples[m.n % m.samples.length] = ms; m.n++; if (ms > m.max) m.max = ms;
+  }
+
+  // Статистика длительности тика (для нагрузочного теста, /metrics).
+  tickStats() {
+    const m = this.metrics;
+    if (!m || !m.n) return null;
+    const arr = Array.from(m.samples.subarray(0, Math.min(m.n, m.samples.length))).sort((a, b) => a - b);
+    const q = f => arr[Math.min(arr.length - 1, Math.floor(arr.length * f))];
+    const wall = (Date.now() - m.startWall) / 1000;
+    return { ticks: m.n, avgMs: arr.reduce((a, b) => a + b, 0) / arr.length, p50: q(0.5), p95: q(0.95), p99: q(0.99), maxMs: m.max,
+      actualHz: wall > 0 ? (this.tickN - m.startTick) / wall : 0, planes: this.planes.size, bullets: this.bullets.length, projs: this.projs.length,
+      users: this.users.size };
   }
 
   tick() {
