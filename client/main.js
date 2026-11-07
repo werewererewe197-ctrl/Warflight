@@ -52,6 +52,8 @@ class App {
     $('nick').value = localStorage.getItem('wf_name') || '';
     this.net = new Net(m => this.onMessage(m), s => this.onStatus(s));
     this.bind();
+    // вкладка ушла в фон — сразу нейтральный ввод (иначе сервер какое-то время повторяет последний, включая огонь)
+    document.addEventListener('visibilitychange', () => { if (document.hidden && this.game) this.game.onHidden(); });
     this.show('menu');
     this.updateProfileMini();
     requestAnimationFrame(t => this.loop(t));
@@ -66,6 +68,7 @@ class App {
     $('ingame').classList.toggle('hidden', !(this.game || this.mode) || !!id);
     this.input.setTouchVisible(!id && !!(this.game || this.mode));
     this.input.enabled = !id;
+    document.body.classList.toggle('ingame-on', !id && !!(this.game || this.mode));
   }
   toast(text) {
     const t = $('toast'); t.textContent = text; t.classList.add('on');
@@ -83,9 +86,19 @@ class App {
   }
 
   onStatus(s) {
-    $('conn-status').textContent = s === 'open' ? `Сервер: подключено (${location.host})` : s === 'connecting' ? 'Подключение к серверу…' : 'Нет связи с сервером — переподключение…';
+    $('conn-status').textContent = s === 'open' ? `Сервер: подключено (${location.host})` : s === 'connecting' ? 'Подключение к серверу…'
+      : s === 'replaced' ? 'Вы вошли с другой вкладки или устройства' : 'Нет связи с сервером — переподключение…';
     if (s === 'open') this.net.send({ t: 'hello', name: this.name, token: token() });
-    if (s === 'closed' && (this.game || this.room)) { this.leaveToMenu(); this.toast('Соединение потеряно'); }
+    // обрыв связи в лобби/бою: не выходим, а ждём переподключения (сервер держит место 30 с)
+    if (s === 'closed' && (this.game || this.room)) { this.reconnecting = true; this.setOverlay('Связь потеряна. Переподключение…'); }
+    if (s === 'replaced') { this.game = null; this.room = null; this.mode = null; this.setOverlay(null); this.show('menu'); this.modal('<h2>Сеанс открыт в другой вкладке</h2><p class="muted">Обновите страницу, чтобы играть здесь.</p>', [['OK']]); }
+  }
+
+  setOverlay(text) {
+    let el = $('net-overlay');
+    if (!el) { el = document.createElement('div'); el.id = 'net-overlay'; document.body.appendChild(el); }
+    el.textContent = text || '';
+    el.classList.toggle('on', !!text);
   }
 
   updateProfileMini() {
@@ -95,7 +108,13 @@ class App {
 
   onMessage(m) {
     switch (m.t) {
-      case 'welcome': this.myId = m.id; this.setProfile(m.profile); break;
+      case 'welcome':
+        this.myId = m.id; this.setProfile(m.profile);
+        if (this.reconnecting) {
+          this.reconnecting = false; this.setOverlay(null);
+          if (!m.resumed) { this.game = null; this.room = null; this.show('menu'); this.toast('Не удалось вернуться в матч — время ожидания истекло'); }
+        }
+        break;
       case 'profile': this.setProfile(m.profile); if (this.screen === 'hangar') this.ui.renderHangar(); break;
       case 'rooms': this.ui.renderRooms(m.list); break;
       case 'room':

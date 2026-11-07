@@ -1,6 +1,6 @@
 // Сетевой бой на клиенте: отправка ввода, предсказание своего самолёта/пилота,
 // сверка с сервером (reconciliation), интерполяция чужих объектов, эффекты и HUD.
-import { DT, TICK_RATE, PHYS_SUBSTEPS, INTERP_DELAY_TICKS, MODES, TEAM_COLORS, TEAM_NAMES, NATIONS, clamp, lerp, lerpAngle, wrapAngle } from '../shared/constants.js';
+import { DT, TICK_RATE, PHYS_SUBSTEPS, INTERP_DELAY_TICKS, SNAPSHOT_EVERY, MODES, TEAM_COLORS, TEAM_NAMES, NATIONS, clamp, lerp, lerpAngle, wrapAngle } from '../shared/constants.js';
 import { buildStats, tickPlane, unpackPlane, tickPilot, unpackPilot } from '../shared/physics.js';
 import { getTerrain } from '../shared/maps.js';
 import { PF, CF, PROJ_NAMES } from '../shared/protocol.js';
@@ -23,7 +23,10 @@ export class NetGame {
     this.setRoster(m.roster);
     this.groundInfo = new Map(m.ground.map(g => [g.gid, g]));
     this.snaps = [];
-    this.est = null;
+    this.est = null;               // тик сервера, который сейчас отрисовывается (для совместимости)
+    this.renderTick = null;
+    this.offsets = [];             // смещения «тик сервера − локальное время» по прибывшим снапшотам
+    this.delayTicks = INTERP_DELAY_TICKS;
     this.seq = 1;
     this.pending = [];
     this.pred = null; this.prevPred = null; this.predKind = null; this.predEid = 0;
@@ -59,12 +62,15 @@ export class NetGame {
   colorOf(id) { const r = this.roster.get(id); return r ? r.color : '#ccc'; }
   nameOf(id) { const r = this.roster.get(id); return r ? r.name : (id ? '?' : 'Окружение'); }
 
+  // Локальное время в тиках (переопределяется в тестах).
+  now() { return performance.now() / 1000 * TICK_RATE; }
+
   // ---------- сообщения сервера ----------
   onSnapshot(s) {
+    if (this.latest && s.k <= this.latest.k) return;      // устаревший/повторный снапшот
     this.snaps.push(s);
     if (this.snaps.length > 40) this.snaps.shift();
-    if (this.est === null) this.est = s.k;
-    else if (s.k > this.est + 10 || s.k < this.est - 20) this.est = s.k;
+    this.clockSample(s.k - this.now());
     this.latest = s;
     for (const e of s.E) this.onEvent(e);
     this.reconcile(s.me);
@@ -75,8 +81,8 @@ export class NetGame {
     const r = this.r;
     switch (e[0]) {
       case 'shot': {
-        const [, owner, x, y, vx, vy, w, life] = e;
-        if (owner === this.predEid && this.predKind === 'plane') return;
+        const [, owner, x, y, vx, vy, w, life, gunner] = e;
+        if (owner === this.predEid && this.predKind === 'plane' && !gunner) return;   // свои курсовые предсказаны локально
         if (owner === 'c' + this.myId) return;
         r.addTracer(x, y, vx, vy, life, w === 'cannon' || w === 'hcannon' ? '255,170,90' : '255,235,160', w === 'cannon' || w === 'hcannon');
         break;
@@ -89,13 +95,14 @@ export class NetGame {
       case 'kill': {
         const [, killer, victim, how] = e;
         const kn = killer ? this.nameOf(killer) : '', vn = this.nameOf(victim);
-        this.killfeed.unshift({ killer: kn || (how === 'crash' ? '' : 'ПВО'), victim: vn, icon: KILL_ICON[how] || 'fire', kc: killer ? this.colorOf(killer) : '#bbb', vc: this.colorOf(victim), ttl: 7 });
+        this.killfeed.unshift({ killer: kn || (how === 'flak' ? 'ПВО' : ''), victim: vn, icon: KILL_ICON[how] || 'fire', kc: killer ? this.colorOf(killer) : '#bbb', vc: this.colorOf(victim), ttl: 7 });
         if (this.killfeed.length > 6) this.killfeed.pop();
         if (killer === this.myId && victim !== this.myId) this.app.toast(how === 'pilot' ? `Пилот ${vn} уничтожен` : `Сбит: ${vn}`);
         if (victim === this.myId) this.spectate = killer || null;
         break;
       }
       case 'msg': this.app.addIngameChat({ sys: true, text: e[1] }); break;
+      case 'gadd': this.groundInfo.set(e[1].gid, e[1]); break;
     }
   }
 
@@ -158,6 +165,7 @@ export class NetGame {
       inp = this.input.pilotInput(null);
     }
     inp.s = this.seq++;
+    if (this.renderTick !== null) inp.rt = Math.round(this.renderTick);
     this.net.send({ ...inp, t: 'in', th: inp.t });
     if (this.pred) {
       this.prevPred = { ...this.pred, parts: this.pred.parts };
@@ -171,6 +179,14 @@ export class NetGame {
       this.pending.push(inp);
       if (this.pending.length > 90) this.pending.shift();
     }
+  }
+
+  // Вкладка ушла в фон: rAF остановится, поэтому сразу отправляем нейтральный ввод (без огня).
+  onHidden() {
+    if (this.ended) return;
+    this.input.keys && this.input.keys.clear && this.input.keys.clear();
+    if (this.input.mouse) this.input.mouse.down = false;
+    this.net.send({ t: 'in', s: this.seq++, p: 0, th: 0, f: 0, ...(this.renderTick !== null ? { rt: Math.round(this.renderTick) } : {}) });
   }
 
   predictGuns(inp) {
@@ -201,21 +217,49 @@ export class NetGame {
     }
   }
 
-  // ---------- интерполяция ----------
+  // ---------- синхронизация часов и интерполяция ----------
+  // Каждый снапшот даёт оценку «тик сервера − локальное время». Наименее задержанный (максимум за окно)
+  // ближе всего к истине; разброс — это джиттер сети, под него подбирается задержка интерполяции.
+  clockSample(off) {
+    this.offsets.push(off);
+    if (this.offsets.length > 90) this.offsets.shift();
+    const sorted = [...this.offsets].sort((a, b) => a - b);
+    this.offMax = sorted[sorted.length - 1];
+    const lo = sorted[Math.floor(sorted.length * 0.1)];
+    const jitter = Math.max(0, this.offMax - lo);
+    this.delayTicks = clamp(SNAPSHOT_EVERY + 1.5 + jitter * 1.1, 3, 12);
+  }
+
+  updateClock(dt) {
+    if (this.offMax === undefined) return;
+    const target = this.now() + this.offMax - this.delayTicks;
+    if (this.renderTick === null || Math.abs(target - this.renderTick) > 20) this.renderTick = target;
+    else {
+      // плавная подстройка скорости времени (±10%) вместо скачков
+      const err = target - this.renderTick;
+      this.renderTick += dt * TICK_RATE * (1 + clamp(err * 0.1, -0.1, 0.1));
+    }
+    this.est = this.renderTick + this.delayTicks;
+  }
+
   interp() {
-    const rt = this.est - INTERP_DELAY_TICKS;
+    const rt = this.renderTick ?? (this.latest ? this.latest.k - INTERP_DELAY_TICKS : 0);
     const S = this.snaps;
     if (!S.length) return null;
     let a = S[0], b = S[0];
     for (let i = 0; i < S.length - 1; i++) if (S[i].k <= rt && S[i + 1].k >= rt) { a = S[i]; b = S[i + 1]; break; }
-    if (rt > S[S.length - 1].k) a = b = S[S.length - 1];
+    let ext = 0;
+    if (rt > S[S.length - 1].k) {
+      // снапшот задержался — немного экстраполируем по скорости (не дальше 150 мс)
+      a = b = S[S.length - 1];
+      ext = Math.min(rt - b.k, 4.5) / TICK_RATE;
+    }
     const t = b.k === a.k ? 0 : clamp((rt - a.k) / (b.k - a.k), 0, 1);
-    return { a, b, t };
+    return { a, b, t, ext };
   }
 
   frame(dt) {
-    if (this.est !== null) this.est += dt * TICK_RATE;
-    if (this.latest && this.est > this.latest.k + 6) this.est = this.latest.k + 6;
+    this.updateClock(dt);
     this.acc += Math.min(dt, 0.25);
     while (this.acc >= DT) { this.acc -= DT; this.tick(); }
     const k = Math.min(1, dt * 8);
@@ -239,8 +283,9 @@ export class NetGame {
         const def = this.app.data.planes.find(d => d.id === P[2]);
         const f = P[10];
         const hidden = (f & PF.CLOUD) && this.hostileId(P[1]);
+        const ex = I.ext && !(f & PF.GROUND) ? I.ext : 0;
         const pl = {
-          id: P[0], owner: P[1], def, x: lerp(A[3], P[3], t), y: lerp(A[4], P[4], t), a: lerpAngle(A[5], P[5], t), roll: lerp(A[6], P[6], t),
+          id: P[0], owner: P[1], def, x: lerp(A[3], P[3], t) + P[7] * ex, y: lerp(A[4], P[4], t) + P[8] * ex, a: lerpAngle(A[5], P[5], t), roll: lerp(A[6], P[6], t),
           vx: P[7], vy: P[8], thr: P[9], boosting: !!(f & PF.BOOST), fire: !!(f & PF.FIRE), dead: !!(f & PF.DEAD), cloud: !!(f & PF.CLOUD),
           hpFrac: P[11] / 100, parts: { engine: P[12], wing: P[13], tail: P[14], fuel: P[15] }, bombs: P[16], rockets: P[17],
           name: f & PF.DEAD ? null : this.nameOf(P[1]), color: this.colorOf(P[1]), hiddenTag: hidden,
@@ -383,6 +428,7 @@ export class NetGame {
     }
     this.input.setTouchMode(touchMode);
     this.input.setTouchInfo(touch);
+    this.lastHudInfo = info;
     drawHud(r, info);
   }
 
@@ -400,11 +446,12 @@ export class NetGame {
       if (sc < bs) { bs = sc; best = o; }
     }
     if (!best) return;
-    let rx = best.x - p.x, ry = best.y - p.y, t = Math.hypot(rx, ry) / w.speed, ax = rx, ay = ry;
-    for (let k = 0; k < 3; k++) { ax = rx + (best.vx - p.vx) * t; ay = ry + (best.vy - p.vy) * t; t = Math.hypot(ax, ay) / w.speed; }
+    const sol = leadSolution(best.x - p.x, best.y - p.y, best.vx - p.vx, best.vy - p.vy, w.speed);
+    if (!sol) return;
+    const [ax, ay, tt] = sol;
     const r = this.r;
     const lx = p.x + ax, ly = p.y + ay;
-    const good = Math.abs(wrapAngle(Math.atan2(ay, ax) - p.a)) < 0.06 && Math.hypot(ax, ay) < w.speed * w.life;
+    const good = Math.abs(wrapAngle(Math.atan2(ay, ax) - p.a)) < 0.06 && tt < w.life;
     info.lead = { x: r.sx(lx), y: r.sy(ly), x2: r.sx(best.x), y2: r.sy(best.y), good };
   }
 
@@ -432,6 +479,22 @@ export class NetGame {
     }).join('');
     return `<table class="list"><thead><tr><th>Пилот</th><th>Самолёт</th><th>Сбито</th><th>Смерти</th><th>Наземка</th><th>Очки</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   }
+}
+
+// Задача встречи: куда направить ствол, чтобы пуля (скорость стрелка + muzzle, гравитация пуль)
+// попала в цель с относительной скоростью (wx, wy). Возвращает [dx, dy, t] — направление «упреждения» и время.
+export const BULLET_GRAVITY = 30;
+export function leadSolution(rx, ry, wx, wy, muzzle) {
+  let t = Math.hypot(rx, ry) / muzzle;
+  let ax = rx, ay = ry;
+  for (let k = 0; k < 12; k++) {
+    ax = rx + wx * t;
+    ay = ry + wy * t + 0.5 * BULLET_GRAVITY * t * t;    // целимся выше на величину падения пули
+    const nt = Math.hypot(ax, ay) / muzzle;
+    if (Math.abs(nt - t) < 1e-4) { t = nt; break; }
+    t = nt;
+  }
+  return isFinite(t) && t > 0 ? [ax, ay, t] : null;
 }
 
 function caliber(name) { const m = /\d+(\.\d+)?/.exec(name || ''); return m ? m[0] + ' мм' : ''; }

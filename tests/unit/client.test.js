@@ -45,6 +45,8 @@ function snap(k, x) {
 function runInterp(serverHz, jitterMs, seconds = 40, fps = 60) {
   const app = stubApp();
   const g = new NetGame(app, matchMsg());
+  let t = 0;
+  g.now = () => t * TICK_RATE;                 // управляемые часы клиента
   const deliveries = [];
   const V = 300; // ед/с
   for (let k = SNAPSHOT_EVERY, i = 0; k / serverHz < seconds; k += SNAPSHOT_EVERY, i++) {
@@ -53,7 +55,7 @@ function runInterp(serverHz, jitterMs, seconds = 40, fps = 60) {
     deliveries.push({ at: sendT + 0.05 + j / 1000, s: snap(k, 1000 + V * k / serverHz) });
   }
   deliveries.sort((a, b) => a.at - b.at);
-  let t = 0, di = 0, prevX = null, maxJump = 0, freezes = 0, frames = 0, back = 0;
+  let di = 0, prevX = null, maxJump = 0, freezes = 0, frames = 0, back = 0;
   const dt = 1 / fps;
   while (t < seconds - 1) {
     t += dt;
@@ -101,11 +103,13 @@ describe('индикатор упреждения', () => {
       // летим пулей (с гравитацией пуль) и ищем минимальное расстояние до цели
       let bx = p.x, by = p.y, bvx = p.vx + Math.cos(aim) * w.speed, bvy = p.vy + Math.sin(aim) * w.speed, best = 1e9;
       let cx = tx, cy = ty;
-      for (let i = 0; i < 60; i++) {
-        bvy -= 30 * DT; bx += bvx * DT; by += bvy * DT; cx += tvx * DT; cy += tvy * DT;
+      // мелкий шаг: сервер проверяет попадание по отрезку траектории, а не только в узлах тика
+      const h = DT / 20;
+      for (let i = 0; i < 60 * 20; i++) {
+        bvy -= 30 * h; bx += bvx * h; by += bvy * h; cx += tvx * h; cy += tvy * h;
         best = Math.min(best, Math.hypot(bx - cx, by - cy));
       }
-      expect(best).toBeLessThan(14);
+      expect(best).toBeLessThan(6);
     }
   });
 });

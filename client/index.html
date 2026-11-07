@@ -74,6 +74,7 @@
         </select></label>
         <label>Таймер возрождения, с <input id="s-rtime" type="number" min="2" max="30" value="5"></label>
         <label class="check"><input type="checkbox" id="s-bots" checked> Боты</label>
+        <label class="check"><input type="checkbox" id="s-ff"> Огонь по своим</label>
         <label>Количество ботов <input id="s-botcount" type="number" min="0" max="15" value="4"></label>
         <label>Сложность ботов <select id="s-botdiff">
           <option value="0">Новички</option><option value="1" selected>Ветераны</option><option value="2">Асы</option>
@@ -245,6 +246,8 @@
       <div class="rb sm" data-btn="menu" data-icon="menu"></div>
     </div>
   </div>
+
+  <div id="rotate-hint"><div><span data-icon="refresh"></span><b>Поверните устройство</b><small>Игра рассчитана на альбомную ориентацию</small></div></div>
 
   <div id="modal" class="hidden"><div class="panel"><div id="modal-body"></div><div class="row end" id="modal-btns"></div></div></div>
   <div id="toast"></div>

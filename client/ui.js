@@ -47,6 +47,7 @@ export class UI {
     $('s-map').value = s.map; $('s-mode').value = s.mode; $('s-max').value = s.maxPlayers; $('s-time').value = s.timeLimit;
     $('s-score').value = s.scoreLimit; $('s-respawn').value = s.respawnMode; $('s-rtime').value = s.respawnTime;
     $('s-bots').checked = s.bots; $('s-botcount').value = s.botCount; $('s-botdiff').value = s.botDifficulty;
+    $('s-ff').checked = !!s.friendlyFire;
     $('s-nations').innerHTML = Object.entries(NATIONS).map(([k, n]) => `<label><input type="checkbox" value="${k}" ${s.nations.includes(k) ? 'checked' : ''}> ${esc(n.name)}</label>`).join('');
     $('s-classes').innerHTML = Object.entries(CLASSES).map(([k, n]) => `<label><input type="checkbox" value="${k}" ${s.classes.includes(k) ? 'checked' : ''}> ${esc(n.name)}</label>`).join('');
   }
@@ -56,7 +57,7 @@ export class UI {
       name: $('s-name').value.trim() || DEFAULT_SETTINGS.name, map: $('s-map').value, mode: $('s-mode').value,
       maxPlayers: +$('s-max').value, timeLimit: +$('s-time').value, scoreLimit: +$('s-score').value,
       respawnMode: $('s-respawn').value, respawnTime: +$('s-rtime').value, bots: $('s-bots').checked,
-      botCount: +$('s-botcount').value, botDifficulty: +$('s-botdiff').value,
+      botCount: +$('s-botcount').value, botDifficulty: +$('s-botdiff').value, friendlyFire: $('s-ff').checked,
       nations: [...$('s-nations').querySelectorAll('input:checked')].map(i => i.value),
       classes: [...$('s-classes').querySelectorAll('input:checked')].map(i => i.value),
     };
@@ -92,6 +93,7 @@ export class UI {
       ${chip('star', s.scoreLimit, 'Лимит очков')}
       ${chip('robot', s.bots ? `${s.botCount} · ${BOT_DIFFICULTY[s.botDifficulty]}` : 'нет', 'Боты')}
       ${chip(s.respawnMode === 'timer' ? 'refresh' : 'takeoff', s.respawnMode === 'timer' ? `${s.respawnTime} с` : 'аэродром', 'Возрождение')}
+      ${s.friendlyFire ? chip('warning', 'огонь по своим', 'Огонь по своим включён') : ''}
       ${room.hasPassword ? chip('lock', 'пароль', 'Лобби с паролем') : ''}
       ${room.state === 'playing' ? chip('fire', 'идёт бой', 'Матч уже идёт', 'mode') : ''}
       ${chip('plane', s.nations.map(n => NATIONS[n].name).join(', '), 'Разрешённые нации')}
@@ -102,7 +104,7 @@ export class UI {
       const def = app.data.planes.find(d => d.id === p.planeId);
       const kick = isHost && p.id !== app.myId ? `<button class="btn small danger" data-kick="${p.id}" title="Исключить">${svg('close')}</button>` : '';
       const host = p.id === room.hostId;
-      return `<div class="pl">${host ? `<span class="crown" title="Хост">${svg('crown')}</span>` : ''}<span class="nm">${esc(p.name)}<span class="lvl">${p.level}</span></span>
+      return `<div class="pl">${host ? `<span class="crown" title="Хост">${svg('crown')}</span>` : ''}<span class="nm">${esc(p.name)}<span class="lvl">${p.level}</span>${p.away ? ' <span class="away">нет связи</span>' : ''}</span>
         <span class="plane">${def ? esc(def.name) : ''}</span><span class="rdy ${p.ready || host ? 'ok' : ''}" title="${host ? 'хост' : p.ready ? 'готов' : 'не готов'}">${svg(p.ready || host ? 'check' : 'clock')}</span>${kick}</div>`;
     };
     if (teams) {

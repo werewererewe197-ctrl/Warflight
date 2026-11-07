@@ -22,7 +22,11 @@ export class Net {
       if (m.t === 'pong') { this.rtt = performance.now() - m.c; return; }
       this.onMessage(m);
     };
-    this.ws.onclose = () => { this.onStatus('closed'); setTimeout(() => this.connect(), 2000); };
+    this.ws.onclose = e => {
+      if (e.code === 4001) { this.stopped = true; this.onStatus('replaced'); return; }   // вход с другой вкладки/устройства
+      this.onStatus('closed');
+      if (!this.stopped) setTimeout(() => this.connect(), e.code === 1013 ? 5000 : 1500);
+    };
   }
   get open() { return this.ws && this.ws.readyState === 1; }
   send(m) {
