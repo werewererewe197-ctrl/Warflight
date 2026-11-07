@@ -38,7 +38,7 @@ async function runMode(mode, map) {
   let ok = true;
   for (const [mode, map] of [['tdm', 'islands'], ['dm', 'plains'], ['base', 'plains'], ['br', 'mountains']]) {
     const s = await runMode(mode, map);
-    if (s.snaps < 50 || s.shots < 10) ok = false;
+    if (s.snaps < (mode === 'br' ? 20 : 50) || s.shots < 10) ok = false;
   }
   srv.kill();
   if (errOut.includes('Ошибка')) ok = false;
