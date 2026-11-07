@@ -2,7 +2,8 @@
 import { SPEED_TO_KMH, PART_NAMES, clamp } from '../shared/constants.js';
 
 export function drawHud(r, info) {
-  const ctx = r.ctx, W = r.W, H = r.H;
+  const ctx = r.ctx;
+  let W = r.W, H = r.H;
   ctx.setTransform(r.dpr, 0, 0, r.dpr, 0, 0);
   ctx.textBaseline = 'alphabetic';
   const me = info.me;
@@ -31,6 +32,11 @@ export function drawHud(r, info) {
     ctx.restore(); ctx.globalAlpha = 1;
   }
 
+  // на маленьких экранах панели уменьшаются
+  const k = info.mobile || W < 900 ? clamp(W / 1150, 0.55, 1) : 1;
+  ctx.setTransform(r.dpr * k, 0, 0, r.dpr * k, 0, 0);
+  W = r.W / k; H = r.H / k;
+
   // ---------- панель состояния ----------
   if (me && me.kind === 'plane') {
     const px = 12, py = mobile ? 12 : H - 150;
@@ -57,7 +63,7 @@ export function drawHud(r, info) {
 
   // ---------- оружие ----------
   if (me && me.kind === 'plane' && me.weapons) {
-    const w = 190, x = W - w - 12, y = mobile ? 12 + 90 : H - 26 - me.weapons.length * 20;
+    const w = 190, x = W - w - 12, y = mobile ? 150 : H - 26 - me.weapons.length * 20;
     if (!mobile || true) {
       const hh = me.weapons.length * 20 + 12;
       panel(ctx, x, y - 6, w, hh);
@@ -78,7 +84,7 @@ export function drawHud(r, info) {
   ctx.textAlign = 'center';
   if (info.score) {
     ctx.font = '700 18px system-ui, sans-serif';
-    const y = (mobile ? 58 : 86);
+    const y = (mobile ? 74 : 86);
     let x = W / 2 - textWidth(ctx, info.score.map(s => s.text).join('   ')) / 2;
     ctx.textAlign = 'left';
     for (const s of info.score) {
@@ -92,7 +98,7 @@ export function drawHud(r, info) {
     ctx.font = '600 14px system-ui, sans-serif';
     ctx.fillStyle = '#fff';
     const t = Math.max(0, Math.ceil(info.timer));
-    ctx.fillText(`${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}` + (info.modeLabel ? '  ·  ' + info.modeLabel : ''), W / 2, mobile ? 76 : 106);
+    ctx.fillText(`${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}` + (info.modeLabel ? '  ·  ' + info.modeLabel : ''), W / 2, mobile ? 94 : 106);
   }
 
   // ---------- лента убийств ----------
@@ -133,7 +139,7 @@ export function drawHud(r, info) {
     }
   }
   if (info.hitMarker > 0) {
-    const cx = info.hitPos ? info.hitPos.x : W / 2, cy = info.hitPos ? info.hitPos.y : H / 2;
+    const cx = (info.hitPos ? info.hitPos.x / k : W / 2), cy = (info.hitPos ? info.hitPos.y / k : H / 2);
     ctx.strokeStyle = `rgba(255,255,255,${info.hitMarker})`; ctx.lineWidth = 2;
     ctx.beginPath();
     for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { ctx.moveTo(cx + dx * 5, cy + dy * 5); ctx.lineTo(cx + dx * 11, cy + dy * 11); }

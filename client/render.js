@@ -30,7 +30,7 @@ export class Renderer {
     this.midPh = [r() * 10, r() * 10, r() * 10];
   }
 
-  baseZoom() { return Math.min(this.W, this.H * 1.6) / 1250; }
+  baseZoom() { return this.H < 500 ? Math.min(this.W, this.H * 2) / 1050 : Math.min(this.W, this.H * 1.6) / 1250; }
 
   follow(x, y, speed = 0, dt = 0.016, extraZoom = 1) {
     const alt = this.terrain ? y - this.terrain.ground(x) : 0;
