@@ -7,7 +7,15 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node server/selftest.js"
+    "test": "vitest run --project unit --project integration",
+    "test:e2e": "vitest run --project e2e",
+    "test:all": "vitest run",
+    "test:load": "node tests/load/load.mjs",
+    "selftest": "node server/selftest.js",
+    "perf": "node tests/e2e/perf.mjs",
+    "report:flight": "node tests/tools/flight-report.mjs",
+    "report:balance": "node tests/tools/balance-report.mjs",
+    "report:bots": "node tests/tools/bot-report.mjs"
   },
   "engines": {
     "node": ">=18"

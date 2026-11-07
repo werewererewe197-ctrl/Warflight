@@ -121,7 +121,7 @@ export class ProfileStore {
   // Начисление наград по итогам матча.
   applyMatch(p, r, won) {
     const xp = Math.round(50 + r.kills * 100 + r.pilotKills * 40 + r.ground * 45 + r.damage / 8 + (won ? 200 : 0));
-    const money = Math.round(xp * 0.8);
+    const money = xp;
     p.xp += xp; p.money += money;
     const s = p.stats;
     s.matches++; if (won) s.wins++;

@@ -298,3 +298,14 @@ describe('античит на уровне симуляции', () => {
     expect(def.cost).toBe(0);
   });
 });
+
+describe('лимит участников', () => {
+  it('при входе в идущий матч бот уступает место — участников не больше лимита', () => {
+    const g = makeGame({ mode: 'tdm', bots: true, botCount: 5, maxPlayers: 6 }, [fakeClient('a', { team: 0 })]);
+    expect(g.users.size).toBe(6);
+    g.addHuman(fakeClient('late', { team: 1 }));
+    expect(g.users.size).toBe(6);
+    expect(g.users.has('late')).toBe(true);
+  });
+});
+

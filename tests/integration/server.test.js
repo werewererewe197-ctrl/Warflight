@@ -260,6 +260,29 @@ describe('лобби', () => {
     expect(m.you).toBe(oldId);
     h.close(); b.close();
   });
+  it('смена команды во время матча запрещена', async () => {
+    const h = await connect(srv, 'Host');
+    await createRoom(h, { mode: 'tdm' });
+    h.send({ t: 'start' }); await h.next('match');
+    h.send({ t: 'team', team: 1 });
+    expect((await h.next('err')).msg).toMatch(/лобби/);
+    h.close();
+  });
+
+  it('один токен в двух вкладках: новая вкладка перехватывает сеанс, старая отключается', async () => {
+    const token = makeToken('twotabs');
+    const a = await connect(srv, 'Twin', token);
+    const room = await createRoom(a, {});
+    const b = await connect(srv, 'Twin', token);
+    expect(b.id).toBe(a.id);
+    await wait(200);
+    expect(a.closed).toBe(true);
+    expect(a.closeCode).toBe(4001);
+    b.send({ t: 'list' });
+    const it = (await b.next('rooms')).list.find(r => r.code === room.code);
+    expect(it.players).toBe(1);
+    b.close();
+  });
 });
 
 describe('античит', () => {

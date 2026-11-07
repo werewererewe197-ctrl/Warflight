@@ -42,7 +42,7 @@ for (const c of clients.slice(1)) c.send({ t: 'ready', ready: true });
 await wait(200);
 hostA.send({ t: 'start' });
 // комната B: 2 человека + 14 ботов
-const hostB = await join(srv, 'LoadB0', null, { name: 'Load B', mode: 'base', map: 'mountains', maxPlayers: 16, bots: true, botCount: 14, botDifficulty: 2, timeLimit: 30 });
+const hostB = await join(srv, 'LoadB0', null, { name: 'Load B', mode: process.env.LOAD_MODE_B || 'tdm', map: 'mountains', maxPlayers: 16, bots: true, botCount: 14, botDifficulty: 2, timeLimit: 30, scoreLimit: 200 });
 const b1 = await join(srv, 'LoadB1', hostB.code);
 b1.send({ t: 'ready', ready: true });
 await wait(200);

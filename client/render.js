@@ -11,6 +11,9 @@ export class Renderer {
     this.tracers = [];
     this.time = 0;
     this.terrain = null;
+    this.sprites = new Map();
+    this.quality = 1; this.frameAvg = 1 / 60;
+    this.bodyGrad = new Map();
     this.resize();
     window.addEventListener('resize', () => this.resize());
   }
@@ -55,16 +58,39 @@ export class Renderer {
   }
 
   // ---------- эффекты ----------
-  addParticle(p) { if (this.particles.length < 2200) this.particles.push(p); }
+  // Лимит частиц зависит от качества (адаптивно снижается, если кадры долгие — слабое устройство).
+  addParticle(p) { if (this.particles.length < 2200 * this.quality) this.particles.push(p); }
+
+  // Предварительно отрисованный круг заданного цвета (drawImage дешевле, чем arc+fill на каждую частицу).
+  sprite(color) {
+    let c = this.sprites.get(color);
+    if (!c) {
+      c = document.createElement('canvas'); c.width = c.height = 32;
+      const g = c.getContext('2d');
+      g.fillStyle = `rgb(${color})`; g.beginPath(); g.arc(16, 16, 15.5, 0, Math.PI * 2); g.fill();
+      this.sprites.set(color, c);
+    }
+    return c;
+  }
+
+  // Средняя длительность кадра → качество эффектов (1 или 0.5).
+  measureFrame(dt) {
+    this.frameAvg = this.frameAvg * 0.97 + dt * 0.03;
+    if (this.frameAvg > 1 / 35 && this.quality > 0.5) this.quality = 0.5;
+    else if (this.frameAvg < 1 / 55 && this.quality < 1) this.quality = 1;
+  }
   smoke(x, y, dark = 0.5, size = 6, vx = 0, vy = 0) {
-    const g = Math.round(200 - dark * 170);
-    this.addParticle({ x, y, vx: vx * 0.2 + (Math.random() - 0.5) * 12, vy: vy * 0.2 + 10 + Math.random() * 10, life: 1.6 + Math.random(), max: 2.4, size, grow: 9, color: `${g},${g},${g}`, a: 0.55, kind: 'smoke' });
+    // на слабом устройстве дыма вдвое меньше и он короче (дым — самое «дорогое» по площади закраски)
+    if (this.quality < 1 && Math.random() < 0.5) return;
+    const g = Math.round((200 - dark * 170) / 8) * 8;          // квантуем оттенок: меньше разных спрайтов
+    const life = (1.6 + Math.random()) * (this.quality < 1 ? 0.6 : 1);
+    this.addParticle({ x, y, vx: vx * 0.2 + (Math.random() - 0.5) * 12, vy: vy * 0.2 + 10 + Math.random() * 10, life, max: life, size, grow: 9, color: `${g},${g},${g}`, a: 0.55, kind: 'smoke' });
   }
   fire(x, y, vx = 0, vy = 0) {
     this.addParticle({ x, y, vx: vx * 0.3 + (Math.random() - 0.5) * 20, vy: vy * 0.3 + Math.random() * 20, life: 0.35 + Math.random() * 0.25, max: 0.6, size: 5 + Math.random() * 4, grow: -4, color: Math.random() < 0.5 ? '255,170,40' : '255,90,20', a: 0.9, kind: 'fire' });
   }
   explode(x, y, r = 60) {
-    const n = Math.min(40, 10 + r / 4);
+    const n = Math.min(40, 10 + r / 4) * this.quality;
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, s = Math.random() * r * 2.5;
       this.addParticle({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s + 40, life: 0.4 + Math.random() * 0.5, max: 0.9, size: r * 0.18 + Math.random() * r * 0.15, grow: r * 0.1, color: Math.random() < 0.5 ? '255,200,80' : '255,110,30', a: 0.95, kind: 'fire' });
@@ -96,7 +122,7 @@ export class Renderer {
     for (let i = 0; i < (big ? 14 : 4); i++) this.addParticle({ x: x + (Math.random() - 0.5) * 10, y, vx: (Math.random() - 0.5) * 80, vy: Math.random() * 80, life: 0.6 + Math.random() * 0.6, max: 1.2, size: big ? 10 : 4, grow: 10, color: '150,130,100', a: 0.6, kind: 'smoke' });
   }
   addTracer(x, y, vx, vy, life, color = '255,230,150', heavy = false) {
-    if (this.tracers.length < 900) this.tracers.push({ x, y, vx, vy, life, color, heavy });
+    if (this.tracers.length < 900 * this.quality) this.tracers.push({ x, y, vx, vy, life, color, heavy, rgba: `rgba(${color},0.95)` });
   }
 
   // Эффекты, привязанные к состоянию самолёта (дым, огонь, выхлоп).
@@ -126,6 +152,7 @@ export class Renderer {
 
   update(dt) {
     this.time += dt;
+    this.measureFrame(dt);
     const t = this.terrain;
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
@@ -489,7 +516,7 @@ export class Renderer {
     for (const b of this.tracers) {
       if (!this.visible(b.x, b.y, 40)) continue;
       const x = this.sx(b.x), y = this.sy(b.y);
-      ctx.strokeStyle = `rgba(${b.color},0.95)`;
+      ctx.strokeStyle = b.rgba;
       ctx.lineWidth = (b.heavy ? 3 : 2) * Math.max(0.7, z);
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - b.vx * 0.032 * z, y + b.vy * 0.032 * z); ctx.stroke();
     }
@@ -498,14 +525,22 @@ export class Renderer {
 
   drawParticles() {
     const ctx = this.ctx, z = this.cam.z;
-    for (const p of this.particles) {
-      if (!this.visible(p.x, p.y, 60)) continue;
+    // экранные координаты считаем один раз, без вызовов sx/sy/visible на каждую частицу
+    const ox = this.W / 2 - this.cam.x * z, oy = this.H / 2 + this.cam.y * z, W = this.W + 60, H = this.H + 60;
+    const P = this.particles;
+    for (let i = 0; i < P.length; i++) {
+      const p = P[i];
+      const x = p.x * z + ox, y = oy - p.y * z;
+      if (x < -60 || x > W || y < -60 || y > H) continue;
       const k = p.life / p.max;
-      ctx.fillStyle = `rgba(${p.color},${(p.a * (p.kind === 'smoke' ? k : Math.min(1, k * 2))).toFixed(3)})`;
+      ctx.globalAlpha = p.a * (p.kind === 'smoke' ? k : (k < 0.5 ? k * 2 : 1));
       const s = p.size * z;
-      if (p.kind === 'debris' || p.kind === 'spark') ctx.fillRect(this.sx(p.x) - s / 2, this.sy(p.y) - s / 2, s, s);
-      else { ctx.beginPath(); ctx.arc(this.sx(p.x), this.sy(p.y), s, 0, Math.PI * 2); ctx.fill(); }
+      if (p.kind === 'debris' || p.kind === 'spark') {
+        ctx.fillStyle = p.rgb || (p.rgb = `rgb(${p.color})`);
+        ctx.fillRect(x - s / 2, y - s / 2, s, s);
+      } else ctx.drawImage(p.spr || (p.spr = this.sprite(p.color)), x - s, y - s, s * 2, s * 2);
     }
+    ctx.globalAlpha = 1;
   }
 
   drawZone(zone, front) {
@@ -591,6 +626,7 @@ export class Renderer {
 }
 
 // ---------- процедурные спрайты самолётов ----------
+const GRAD = new Map();
 export function drawPlaneShape(ctx, def, parts, time, thr, dead, bombsLeft, rocketsLeft) {
   const nat = NATIONS[def.nation] || NATIONS.us;
   const body = nat.color, belly = shade(nat.color, 0.25), dark = shade(nat.color, -0.3);
@@ -609,9 +645,13 @@ export function drawPlaneShape(ctx, def, parts, time, thr, dead, bombsLeft, rock
   if (parts.tail < 0.5) jagged(ctx, -18 * L, -2.5 - 8.5 * tailH, 3);
 
   // фюзеляж
-  const g = ctx.createLinearGradient(0, -6, 0, 6);
-  g.addColorStop(0, shade(body, 0.12)); g.addColorStop(0.55, body); g.addColorStop(1, belly);
-  ctx.fillStyle = g;
+  let g = GRAD.get(body);
+  if (!g || g.ctx !== ctx) {
+    g = { ctx, grad: ctx.createLinearGradient(0, -6, 0, 6) };
+    g.grad.addColorStop(0, shade(body, 0.12)); g.grad.addColorStop(0.55, body); g.grad.addColorStop(1, belly);
+    GRAD.set(body, g);
+  }
+  ctx.fillStyle = g.grad;
   ctx.beginPath();
   if (shape === 'bomber') {
     ctx.moveTo(19, 0.5);
